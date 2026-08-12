@@ -239,7 +239,7 @@ if (Test-Path -LiteralPath $lockDir) {
     if (Test-Path -LiteralPath $pidFile) { $holder = (Get-Content -LiteralPath $pidFile | Select-Object -First 1) }
     $alive = $false
     if ($holder -ne '') {
-        try { $alive = ($null -ne (Get-Process -Id ([int]$holder) -ErrorAction Stop)) } catch {}
+        try { $alive = ($null -ne (Get-Process -Id ([int]$holder) -ErrorAction Stop)) } catch { $alive = $false }
     }
     if (-not $alive) {
         if ($Fix) {

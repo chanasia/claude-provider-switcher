@@ -59,6 +59,9 @@ function Get-ProfileFiles {
     # Every *.json in the profile dir EXCEPT dot-prefixed bookkeeping files
     # (.state.json, staging leftovers). Those are not profiles and must never
     # be validated or listed as such.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'Deliberately plural: returns the full set of profile files')]
+    param()
     $dir = Get-ProfileDir
     if (-not (Test-Path -LiteralPath $dir)) { return @() }
     return @(Get-ChildItem -LiteralPath $dir -Filter '*.json' -File |
@@ -192,11 +195,11 @@ function Lock-ProviderState {
             $pidFile = Join-Path $lockDir 'pid'
             $holderPid = $null
             if (Test-Path -LiteralPath $pidFile) {
-                try { $holderPid = [int](Get-Content -LiteralPath $pidFile -ErrorAction Stop | Select-Object -First 1) } catch {}
+                try { $holderPid = [int](Get-Content -LiteralPath $pidFile -ErrorAction Stop | Select-Object -First 1) } catch { $holderPid = $null }
             }
             if ($holderPid) {
                 $alive = $false
-                try { $alive = ($null -ne (Get-Process -Id $holderPid -ErrorAction Stop)) } catch {}
+                try { $alive = ($null -ne (Get-Process -Id $holderPid -ErrorAction Stop)) } catch { $alive = $false }
                 if (-not $alive) {
                     Remove-Item -LiteralPath $lockDir -Recurse -Force -ErrorAction SilentlyContinue
                     $retries = $retries + 1

@@ -9,6 +9,9 @@
 #
 # Exit codes: 0 ok | 1 runtime | 2 usage | 4 already exists | 6 schema
 
+# CredTarget is a Credential Manager target NAME (a reference), never a secret.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'CredTarget',
+    Justification = 'Target name is a reference into Credential Manager, not secret material')]
 param(
     [string]$Name = '',
     [string]$AuthType = '',

@@ -159,7 +159,7 @@ and rejects any leftover `{{PLACEHOLDER}}`.
 | 2 | usage error |
 | 3 | profile not found |
 | 4 | profile already exists |
-| 5 | scope locked (reserved for project scope, post-v0.1) |
+| 5 | locked — the operation targets the active profile (e.g. `remove`); also reserved for project-scope locking post-v0.1 |
 | 6 | schema validation failure |
 | 7 | missing dependency |
 | 8 | drift detected — needs user resolution |

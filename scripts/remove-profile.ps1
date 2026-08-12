@@ -59,6 +59,7 @@ try {
     }
 } catch {
     # An unparseable profile can still be removed.
+    $credTarget = ''
 }
 
 try {
