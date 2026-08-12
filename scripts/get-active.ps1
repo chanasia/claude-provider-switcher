@@ -79,7 +79,8 @@ if ($Json) {
 }
 
 if ($null -eq $active -or $active -eq '') {
-    Write-Output 'provider: no profile is active (run /provider:switch <name>, or /provider:init for first-time setup)'
+    Write-Output 'provider: no profile is active - this session is on Claude Code defaults, i.e. Anthropic direct (subscription OAuth or ANTHROPIC_API_KEY).'
+    Write-Output '  Use /provider:switch <name> to activate a gateway profile.'
     if (-not [string]::IsNullOrEmpty($marker)) {
         Write-Output "  note: this session was started with profile '$marker', but the sidecar no longer tracks it."
     }

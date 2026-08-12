@@ -39,6 +39,20 @@ if (-not (Test-Path -LiteralPath $profilePath)) {
         if ($available) {
             [Console]::Error.WriteLine("  available profiles: $($available -join ', ')")
         }
+        if ($Name -eq 'anthropic') {
+            [Console]::Error.WriteLine("  hint: run /provider:init to seed the built-in 'anthropic' (Anthropic direct) profile.")
+            # If nothing is active, there is nothing to switch away from anyway.
+            $scopeEntry = $null
+            try { $scopeEntry = Read-SidecarScope -ScopeKey 'global' } catch { $scopeEntry = $null }
+            $activeNow = ''
+            if ($null -ne $scopeEntry) {
+                $p = $scopeEntry.PSObject.Properties['active_profile']
+                if ($null -ne $p) { $activeNow = [string]$p.Value }
+            }
+            if ($activeNow -eq '') {
+                [Console]::Error.WriteLine('  note: no profile is active, so this session is ALREADY on Anthropic direct (Claude Code defaults).')
+            }
+        }
     } else {
         [Console]::Error.WriteLine('  run /provider:init first')
     }

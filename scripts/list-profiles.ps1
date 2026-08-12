@@ -103,7 +103,7 @@ foreach ($row in $rows) {
 }
 Write-Output ''
 if ($active -eq '') {
-    Write-Output 'no profile is active (* marks the active one once you switch)'
+    Write-Output 'no profile is active - the session is on Anthropic direct (Claude Code defaults). * marks the active one once you switch.'
 } else {
     Write-Output "* = active on disk. Run /provider:current to check whether this session has it loaded."
 }

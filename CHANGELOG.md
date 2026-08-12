@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/provider:edit` for flag-driven field changes
 - macOS / Linux port of the credential and shim layers
 
+## [0.1.1]
+
+### Changed
+
+- "No profile is active" now states the implication explicitly everywhere
+  (`current`, `list`, and the `switch anthropic` not-found path): the session
+  is on Anthropic direct - Claude Code defaults - not in an unknown state.
+- `switch anthropic` when the seed profile is missing now hints that
+  `/provider:init` creates it, and notes when the session is already on
+  Anthropic direct so no switch is needed.
+
 ## [0.1.0]
 
 Initial release. Windows-first.
