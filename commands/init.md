@@ -17,8 +17,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/s
 
 Tell the user what they got and what to do next:
 
-- `~/.claude/provider-profiles/` now holds two starter profiles: `anthropic` (auth type `none`, i.e. their normal subscription login) and `gateway-example` (a template to edit or copy).
-- The example profile is **not** usable as-is - it points at `gateway.example.com`. Offer to run `/provider:add` to create a real one.
+- `~/.claude/provider-profiles/` now holds the `anthropic` starter profile (auth type `none`, i.e. their normal subscription login) - the switch-back target after using a gateway.
+- Gateway profiles are created with `/provider:add`.
 - Nothing is active yet. `/provider:switch <name>` activates a profile, and Claude Code must be restarted afterwards.
 
 Do not offer to edit the seed profiles by hand unless the user asks - `/provider:add` builds a validated profile and stores the token in Windows Credential Manager, which hand-editing does not.

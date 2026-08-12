@@ -6,7 +6,7 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 Describe 'init.ps1' {
 
-    It 'creates the profile dir, seeds both examples, and writes a sidecar' {
+    It 'creates the profile dir, seeds only anthropic, and writes a sidecar' {
         $h = Join-Path $TestDrive 'init-fresh'
         $null = New-Item -ItemType Directory -Path $h -Force
         $env:CLAUDE_PROVIDER_HOME = $h
@@ -16,21 +16,21 @@ Describe 'init.ps1' {
 
         $dir = Join-Path $h '.claude\provider-profiles'
         Test-Path (Join-Path $dir 'anthropic.json') | Should Be $true
-        Test-Path (Join-Path $dir 'gateway-example.json') | Should Be $true
+        # the example template documents the shape but must NOT be seeded -
+        # unusable placeholders in the list confuse users
+        Test-Path (Join-Path $dir 'gateway-example.json') | Should Be $false
         Test-Path (Join-Path $dir '.state.json') | Should Be $true
         Test-Path (Join-Path $dir '.helpers') | Should Be $true
     }
 
-    It 'seeds profiles that pass validation' {
+    It 'seeds a profile that passes validation' {
         $h = Join-Path $TestDrive 'init-valid'
         $null = New-Item -ItemType Directory -Path $h -Force
         $env:CLAUDE_PROVIDER_HOME = $h
         $null = Invoke-ProviderScript 'init.ps1'
 
-        foreach ($n in @('anthropic', 'gateway-example')) {
-            $p = Join-Path $h ".claude\provider-profiles\$n.json"
-            (Invoke-ProviderScript 'validate-profile.ps1' @($p)).Exit | Should Be 0
-        }
+        $p = Join-Path $h '.claude\provider-profiles\anthropic.json'
+        (Invoke-ProviderScript 'validate-profile.ps1' @($p)).Exit | Should Be 0
     }
 
     It 'is idempotent and never overwrites an edited profile' {
@@ -65,7 +65,6 @@ Describe 'list-profiles.ps1' {
         $r = Invoke-ProviderScript 'list-profiles.ps1'
         $r.Exit | Should Be 0
         $r.Output | Should Match 'anthropic'
-        $r.Output | Should Match 'gateway-example'
         $r.Output | Should Match 'no profile is active'
     }
 

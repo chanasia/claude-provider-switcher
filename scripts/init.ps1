@@ -20,9 +20,11 @@ try {
     $null = New-Item -ItemType Directory -Path (Get-HelpersDir) -Force
 
     $templatesDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'templates'
+    # Only the anthropic switch-back target is seeded. gateway-example stays
+    # in templates/ as documentation - seeding an unusable placeholder into
+    # the list confused real users (v0.1.5); /provider:add creates real ones.
     $seeds = @(
-        @{ Template = 'profile-anthropic.json'; Name = 'anthropic' },
-        @{ Template = 'profile-gateway-example.json'; Name = 'gateway-example' }
+        @{ Template = 'profile-anthropic.json'; Name = 'anthropic' }
     )
 
     $seeded = New-Object System.Collections.Generic.List[string]

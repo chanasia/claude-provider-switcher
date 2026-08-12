@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/provider:edit` for flag-driven field changes
 - macOS / Linux port of the credential and shim layers
 
+## [0.1.5]
+
+### Changed
+
+- `/provider:init` no longer seeds `gateway-example` (user feedback): an
+  unusable placeholder showing up in `/provider:list` next to real,
+  switchable profiles is confusing. The template stays in the repo's
+  `templates/` as schema documentation; real gateway profiles come from
+  `/provider:add`. Existing machines: `/provider:remove gateway-example`.
+
 ## [0.1.4]
 
 ### Changed

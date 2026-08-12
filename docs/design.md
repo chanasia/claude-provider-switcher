@@ -41,7 +41,9 @@ pure PowerShell.
 ```
 ~/.claude/provider-profiles/
   anthropic.json              seed: auth none → subscription OAuth
-  gateway-example.json        seed: template the user copies/edits
+  <name>.json                 gateway profiles created via /provider:add
+                              (templates/profile-gateway-example.json in the
+                              repo documents the shape; it is NOT seeded)
   .state.json                 sidecar (managed-keys record per scope)
   .state.lock/                advisory lock dir (transient)
   .helpers/<name>.ps1         rendered secret-reading shim (reference only)
