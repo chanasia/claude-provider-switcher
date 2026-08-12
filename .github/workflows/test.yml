@@ -40,6 +40,10 @@ jobs:
             exit 1
           }
           Write-Output "$($result.PassedCount) test(s) passed"
+          # Tests spawn child processes that exit non-zero on purpose; the
+          # runner's wrapper otherwise adopts the stale $LASTEXITCODE as the
+          # step result. All assertions passed, so say so explicitly.
+          exit 0
 
   analyze:
     runs-on: windows-latest
