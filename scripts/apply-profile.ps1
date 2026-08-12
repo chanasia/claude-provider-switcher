@@ -35,7 +35,7 @@ if (-not (Test-Path -LiteralPath $profilePath)) {
     [Console]::Error.WriteLine("provider: profile not found: $Name")
     $dir = Get-ProfileDir
     if (Test-Path -LiteralPath $dir) {
-        $available = Get-ChildItem -LiteralPath $dir -Filter '*.json' -File | ForEach-Object { $_.BaseName }
+        $available = @(Get-ProfileFiles) | ForEach-Object { $_.BaseName }
         if ($available) {
             [Console]::Error.WriteLine("  available profiles: $($available -join ', ')")
         }
@@ -46,7 +46,7 @@ if (-not (Test-Path -LiteralPath $profilePath)) {
 }
 
 # ============================================================
-# Step 0: Preflight — validate the profile
+# Step 0: Preflight - validate the profile
 # ============================================================
 & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
     -File (Join-Path $PSScriptRoot 'validate-profile.ps1') $profilePath | Out-Null
@@ -233,7 +233,7 @@ function Invoke-Apply {
         $newManagedHelper = $true
         $newHelperValue = [string](@($renderOut) | Select-Object -Last 1)
     } else {
-        # auth:none — no helper. Clean up stale shims for this profile name.
+        # auth:none - no helper. Clean up stale shims for this profile name.
         & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
             -File (Join-Path $PSScriptRoot 'render-helper.ps1') $profilePath | Out-Null
     }
@@ -246,7 +246,7 @@ function Invoke-Apply {
     if ($prevManagedHelper) { Remove-Prop $settings 'apiKeyHelper' }
 
     # ---- Step 8: incorporate drifted values the new profile does NOT
-    # manage — they survive as unmanaged user edits ----
+    # manage - they survive as unmanaged user edits ----
     if ($AcceptDrift -eq 'incorporate' -and $driftKeys.Count -gt 0) {
         foreach ($dkey in @($driftActual.Keys)) {
             if ($dkey -eq 'model') {
@@ -265,7 +265,7 @@ function Invoke-Apply {
         }
     }
 
-    # ---- Step 9: merge new keys — extras first, plugin-managed last ----
+    # ---- Step 9: merge new keys - extras first, plugin-managed last ----
     if ($null -eq $settingsEnv) {
         $settingsEnv = New-Object PSObject
         Set-Prop $settings 'env' $settingsEnv
@@ -302,7 +302,7 @@ function Invoke-Apply {
     # ---- Step 10: sidecar write FIRST (crash-safe ordering), then target ----
     $newScope = New-Object PSObject
     Set-Prop $newScope 'active_profile' $Name
-    Set-Prop $newScope 'managed_env_keys' @($newManagedKeys)
+    Set-Prop $newScope 'managed_env_keys' $newManagedKeys.ToArray()
     Set-Prop $newScope 'managed_env_values' $newManagedValues
     Set-Prop $newScope 'managed_model' $newManagesModel
     Set-Prop $newScope 'managed_model_value' $(if ($newManagesModel) { [string]$model } else { '' })

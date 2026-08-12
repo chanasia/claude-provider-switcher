@@ -1,4 +1,4 @@
-# lib.ps1 — shared helpers for claude-provider-switcher scripts.
+# lib.ps1 - shared helpers for claude-provider-switcher scripts.
 #
 # Every script dot-sources this file first:
 #   . (Join-Path $PSScriptRoot 'lib.ps1')
@@ -9,7 +9,7 @@
 Set-StrictMode -Version 2.0
 
 # ============================================================
-# Exit codes (design.md §7)
+# Exit codes (design.md section 7)
 # ============================================================
 $EXIT_OK               = 0
 $EXIT_RUNTIME          = 1
@@ -23,7 +23,7 @@ $EXIT_DRIFT            = 8
 $EXIT_RESTART_REQUIRED = 9
 
 # ============================================================
-# Paths (design.md §2). CLAUDE_PROVIDER_HOME overrides $HOME for tests.
+# Paths (design.md section 2). CLAUDE_PROVIDER_HOME overrides $HOME for tests.
 # ============================================================
 function Get-ProviderUserHome {
     if ($env:CLAUDE_PROVIDER_HOME) { return $env:CLAUDE_PROVIDER_HOME }
@@ -55,8 +55,47 @@ function Get-ProfilePath {
     return (Join-Path (Get-ProfileDir) ($Name + '.json'))
 }
 
+function Get-ProfileFiles {
+    # Every *.json in the profile dir EXCEPT dot-prefixed bookkeeping files
+    # (.state.json, staging leftovers). Those are not profiles and must never
+    # be validated or listed as such.
+    $dir = Get-ProfileDir
+    if (-not (Test-Path -LiteralPath $dir)) { return @() }
+    return @(Get-ChildItem -LiteralPath $dir -Filter '*.json' -File |
+        Where-Object { -not $_.Name.StartsWith('.') } |
+        Sort-Object Name)
+}
+
+function Invoke-ChildScript {
+    # Runs a sibling script in a child powershell.exe and returns its exit
+    # code. Native stderr is captured rather than allowed to surface as a
+    # NativeCommandError, which $ErrorActionPreference='Stop' would turn
+    # into a terminating error in the caller.
+    param(
+        [string]$ScriptName,
+        [string[]]$Arguments = @(),
+        [switch]$PassThruOutput
+    )
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+            -File (Join-Path $PSScriptRoot $ScriptName) @Arguments 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+    if ($PassThruOutput) {
+        return ([PSCustomObject]@{
+            ExitCode = $code
+            Output   = (($output | ForEach-Object { "$_" }) -join "`n")
+        })
+    }
+    return $code
+}
+
 # ============================================================
-# Extras denylist (design.md §3). Env vars that can alter process
+# Extras denylist (design.md section 3). Env vars that can alter process
 # semantics MUST NOT appear as extras keys. Checked at validate-time
 # AND apply-time (defense in depth). LD_*/DYLD_* are prefix matches.
 # ============================================================
@@ -149,7 +188,7 @@ function Lock-ProviderState {
             Set-Content -LiteralPath (Join-Path $lockDir 'pid') -Value $PID -Encoding Ascii
             return $true
         } catch {
-            # Lock exists — is the holder still alive?
+            # Lock exists - is the holder still alive?
             $pidFile = Join-Path $lockDir 'pid'
             $holderPid = $null
             if (Test-Path -LiteralPath $pidFile) {
@@ -178,8 +217,8 @@ function Unlock-ProviderState {
 }
 
 # ============================================================
-# Sidecar state (design.md §4). Missing file reads as an empty object;
-# a CORRUPT file always throws — treating it as empty would strand
+# Sidecar state (design.md section 4). Missing file reads as an empty object;
+# a CORRUPT file always throws - treating it as empty would strand
 # previously managed keys in the settings file.
 # ============================================================
 function Read-Sidecar {
@@ -223,8 +262,8 @@ function Write-SidecarScope {
     Write-AtomicFile -Path (Get-SidecarPath) -Content (($sidecar | ConvertTo-Json -Depth 10) + "`n")
 }
 
-#region platform — Windows Credential Manager (P/Invoke advapi32)
-# Porting note (design.md §8): a macOS/Linux port implements these same
+#region platform - Windows Credential Manager (P/Invoke advapi32)
+# Porting note (design.md section 8): a macOS/Linux port implements these same
 # four functions against `security` / `secret-tool`. Nothing outside this
 # region touches an OS credential store.
 # ============================================================
@@ -291,7 +330,7 @@ function Get-StoredCredential {
         $bytes = New-Object byte[] $cred.CredentialBlobSize
         [System.Runtime.InteropServices.Marshal]::Copy($cred.CredentialBlob, $bytes, 0, $cred.CredentialBlobSize)
         # This plugin writes UTF-8. Tools like cmdkey write UTF-16LE, whose
-        # ASCII-range bytes contain NULs — detect and decode accordingly.
+        # ASCII-range bytes contain NULs - detect and decode accordingly.
         if ($bytes -contains 0) {
             return [System.Text.Encoding]::Unicode.GetString($bytes)
         }

@@ -2,7 +2,7 @@
 #
 # Reports the effective provider profile: what's active on disk (sidecar),
 # what the running session was started with (CLAUDE_PROVIDER_ACTIVE env
-# marker), and whether the two disagree (stale — restart pending).
+# marker), and whether the two disagree (stale - restart pending).
 # Output is redacted by design: profiles contain references, never secrets.
 #
 # Exit codes: 0 ok | 1 runtime (corrupt sidecar)
@@ -38,7 +38,7 @@ if ($null -ne $active -and $active -ne '') {
     $stale = ($marker -cne $active)
 }
 
-# ---- profile summary (references only — nothing secret exists to leak) ----
+# ---- profile summary (references only - nothing secret exists to leak) ----
 $summary = $null
 if ($null -ne $active -and $active -ne '') {
     $profilePath = Get-ProfilePath -Name $active
@@ -50,7 +50,7 @@ if ($null -ne $active -and $active -ne '') {
             $authRef = ''
             if ($authType -eq 'credman') { $authRef = [string](Get-Prop $auth 'target') }
             if ($authType -eq 'env_var') { $authRef = [string](Get-Prop $auth 'var') }
-            $summary = New-Object PSObject -Property @{
+            $summary = [PSCustomObject]@{
                 description = [string](Get-Prop $doc 'description')
                 base_url    = [string](Get-Prop $doc 'base_url')
                 auth_type   = $authType
@@ -66,9 +66,11 @@ if ($null -ne $active -and $active -ne '') {
 }
 
 if ($Json) {
-    $out = New-Object PSObject -Property @{
+    $markerOut = $null
+    if (-not [string]::IsNullOrEmpty($marker)) { $markerOut = $marker }
+    $out = [PSCustomObject]@{
         active_profile = $active
-        session_marker = $(if ([string]::IsNullOrEmpty($marker)) { $null } else { $marker })
+        session_marker = $markerOut
         stale          = $stale
         profile        = $summary
     }
@@ -86,18 +88,18 @@ if ($null -eq $active -or $active -eq '') {
 
 Write-Output "active profile (on disk): $active"
 if ([string]::IsNullOrEmpty($marker)) {
-    Write-Output 'session marker (env):     (none — this session predates the switch)'
+    Write-Output 'session marker (env):     (none - this session predates the switch)'
 } else {
     Write-Output "session marker (env):     $marker"
 }
 if ($stale) {
-    Write-Output 'status:                   STALE — restart Claude Code to activate the on-disk profile'
+    Write-Output 'status:                   STALE - restart Claude Code to activate the on-disk profile'
 } else {
     Write-Output 'status:                   in effect'
 }
 if ($null -ne $summary) {
     if ($summary.description) { Write-Output "  description: $($summary.description)" }
-    if ($summary.base_url) { Write-Output "  base_url:    $($summary.base_url)" } else { Write-Output '  base_url:    (default — Anthropic direct)' }
+    if ($summary.base_url) { Write-Output "  base_url:    $($summary.base_url)" } else { Write-Output '  base_url:    (default - Anthropic direct)' }
     if ($summary.auth_ref) {
         Write-Output "  auth:        $($summary.auth_type) -> $($summary.auth_ref)"
     } else {

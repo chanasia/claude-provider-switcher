@@ -2,10 +2,10 @@
 #
 # Renders the per-profile apiKeyHelper shim pair into
 # ~/.claude/provider-profiles/.helpers/ (design.md section 6):
-#   <name>.ps1 — self-contained secret reader (credman / env_var)
-#   <name>.cmd — wrapper whose Windows path goes into settings.local.json
+#   <name>.ps1 - self-contained secret reader (credman / env_var)
+#   <name>.cmd - wrapper whose Windows path goes into settings.local.json
 #
-# auth:none needs no shim — any stale shim pair for the profile is removed.
+# auth:none needs no shim - any stale shim pair for the profile is removed.
 # Substituted values are re-validated against the schema regexes at render
 # time (defense in depth), and the rendered .ps1 is re-parsed after write.
 #
@@ -61,7 +61,7 @@ $helpersDir = Get-HelpersDir
 $ps1Path = Join-Path $helpersDir ($name + '.ps1')
 $cmdPath = Join-Path $helpersDir ($name + '.cmd')
 
-# ---- auth:none — nothing to render; clean up any stale shim pair ----
+# ---- auth:none - nothing to render; clean up any stale shim pair ----
 if ($authType -eq 'none') {
     foreach ($f in @($ps1Path, $cmdPath)) {
         if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force }
@@ -116,7 +116,7 @@ if (-not (Test-Path -LiteralPath $cmdTemplate)) {
 }
 $cmdBody = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $cmdTemplate).ProviderPath)
 $cmdBody = $cmdBody.Replace('{{NAME}}', $name).Replace('{{PS1_PATH}}', $ps1Path)
-# cmd.exe misparses LF-only batch files — force CRLF regardless of how the
+# cmd.exe misparses LF-only batch files - force CRLF regardless of how the
 # template was checked out.
 $cmdBody = $cmdBody.Replace("`r`n", "`n").Replace("`n", "`r`n")
 
@@ -129,7 +129,7 @@ try {
 }
 
 # ---- post-write validation ----
-# 1. The rendered .ps1 must still parse — no construct survived substitution.
+# 1. The rendered .ps1 must still parse - no construct survived substitution.
 $parseErrors = $null
 $null = [System.Management.Automation.PSParser]::Tokenize([System.IO.File]::ReadAllText($ps1Path), [ref]$parseErrors)
 if ($parseErrors -and $parseErrors.Count -gt 0) {

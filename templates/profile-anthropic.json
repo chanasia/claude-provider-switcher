@@ -1,0 +1,5 @@
+{
+  "name": "anthropic",
+  "description": "Anthropic direct - subscription OAuth or ANTHROPIC_API_KEY",
+  "auth": { "type": "none" }
+}
