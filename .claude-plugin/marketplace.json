@@ -1,0 +1,30 @@
+{
+  "name": "claude-provider-switcher",
+  "owner": {
+    "name": "chanasia",
+    "url": "https://github.com/chanasia"
+  },
+  "plugins": [
+    {
+      "name": "provider",
+      "source": "./",
+      "description": "Switch Claude Code between Anthropic direct and custom LLM gateway providers (with per-profile default model) via slash commands. Windows-first, zero secret material stored in plugin files.",
+      "author": {
+        "name": "chanasia",
+        "url": "https://github.com/chanasia"
+      },
+      "homepage": "https://github.com/chanasia/claude-provider-switcher",
+      "repository": "https://github.com/chanasia/claude-provider-switcher",
+      "license": "MIT",
+      "keywords": [
+        "claude-code-plugin",
+        "llm-gateway",
+        "provider",
+        "profiles",
+        "windows",
+        "powershell"
+      ],
+      "category": "workflow"
+    }
+  ]
+}

@@ -71,12 +71,23 @@ See [`docs/design.md`](./docs/design.md) for the full invariant list and threat 
 
 ## Install
 
+### Via the plugin marketplace (recommended)
+
+Inside any Claude Code session:
+
+```
+/plugin marketplace add chanasia/claude-provider-switcher
+/plugin install provider@claude-provider-switcher
+```
+
+### Via a local clone
+
 ```powershell
 git clone https://github.com/chanasia/claude-provider-switcher.git
 claude --plugin-dir path\to\claude-provider-switcher
 ```
 
-Inside the session run `/provider:init`, then `/provider:list` to confirm.
+Either way, run `/provider:init` inside the session afterwards, then `/provider:list` to confirm the commands are loaded.
 
 ## Typical flow
 
