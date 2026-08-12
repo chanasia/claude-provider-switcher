@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project scope (`<repo>/.claude/settings.local.json`) alongside global
 - `/provider:edit` for flag-driven field changes
 
+## [0.1.10]
+
+### Added
+
+- **doctor check 11: stray plugin-like keys.** Claude Code itself writes
+  `~/.claude/settings.json` (plugin registry, `/model` persistence), so a
+  session left running across a switch can write stale provider keys
+  back after apply-profile cleaned them - found in real use. doctor now
+  flags unmanaged keys that are recognizably the plugin's (an
+  `apiKeyHelper` path inside the profile dir, an `ANTHROPIC_BASE_URL`
+  matching a profile, the `CLAUDE_PROVIDER_ACTIVE` marker); `--fix`
+  removes them. A hand-set `model` alone (e.g. via `/model`) is never
+  flagged, and keys the sidecar owns stay in the drift check.
+- README: close other Claude Code sessions before switching.
+
 ## [0.1.9]
 
 ### Fixed

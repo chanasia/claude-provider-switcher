@@ -26,7 +26,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/s
 
 ### What it checks
 
-Profile directory and sidecar exist and parse; every profile validates; the active profile still exists; its helper shims are present; its auth reference resolves (credential stored / environment variable set); the managed settings file parses and still matches what the plugin wrote (drift); `apiKeyHelper` points at a real file; no orphaned shims, stale temp files, or stale locks; no secrets recorded in settings permissions; no plugin keys stranded in the pre-0.1.9 location (`~/.claude/settings.local.json`).
+Profile directory and sidecar exist and parse; every profile validates; the active profile still exists; its helper shims are present; its auth reference resolves (credential stored / environment variable set); the managed settings file parses and still matches what the plugin wrote (drift); `apiKeyHelper` points at a real file; no orphaned shims, stale temp files, or stale locks; no secrets recorded in settings permissions; no plugin keys stranded in the pre-0.1.9 location (`~/.claude/settings.local.json`); no stray plugin-like keys in `settings.json` that the sidecar does not own (e.g. written back by a session that was still running during a switch).
 
 It never runs a helper shim and never reads a secret's value - existence checks only.
 

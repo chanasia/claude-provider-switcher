@@ -60,6 +60,8 @@ Claude Code reads auth environment variables at process startup. `/provider:swit
 
 Switching **models within the same provider** needs no restart at all — use Claude Code's built-in `/model <name>` mid-session. A profile's `model` field only sets the default for new sessions.
 
+> **Close other Claude Code sessions before switching.** Claude Code itself writes `~/.claude/settings.json` (plugin registry, `/model` persistence), so a session left running across a switch can write stale provider keys back afterward. `/provider:doctor` flags those as *stray* keys and `--fix` removes them.
+
 ## Security model
 
 - **No secrets in plugin-managed files.** Profiles, sidecar state, and rendered helper shims hold only references.

@@ -428,6 +428,49 @@ Describe 'doctor.ps1' {
         (Invoke-ProviderScript 'doctor.ps1').Exit | Should Be 0
     }
 
+    It 'flags stray plugin-like keys the sidecar does not own and removes them with -Fix' {
+        $h = New-TestHome $TestDrive 'dr-stray'
+        $null = Write-TestProfile $h 'anthropic' '{"name":"anthropic","auth":{"type":"none"}}'
+        $null = Write-TestProfile $h 'gw' '{"name":"gw","base_url":"https://gw.example.com/x","auth":{"type":"env_var","var":"CPS_DR_STRAY"},"model":"m/x"}'
+        (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
+
+        # simulate a stale session writing old provider keys back
+        $sPath = Join-Path $h '.claude\settings.json'
+        $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
+        $s | Add-Member -NotePropertyName apiKeyHelper -NotePropertyValue (Join-Path $h '.claude\provider-profiles\.helpers\gw.cmd')
+        $s | Add-Member -NotePropertyName model -NotePropertyValue 'm/x'
+        $s.env | Add-Member -NotePropertyName ANTHROPIC_BASE_URL -NotePropertyValue 'https://gw.example.com/x'
+        [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))
+
+        $r = Invoke-ProviderScript 'doctor.ps1'
+        $r.Output | Should Match 'stray'
+        $r.Output | Should Match 'ANTHROPIC_BASE_URL'
+
+        $null = Invoke-ProviderScript 'doctor.ps1' @('-Fix')
+        $after = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
+        $after.PSObject.Properties['apiKeyHelper'] | Should Be $null
+        $after.PSObject.Properties['model'] | Should Be $null
+        $after.env.PSObject.Properties['ANTHROPIC_BASE_URL'] | Should Be $null
+        # the managed marker is untouched
+        $after.env.CLAUDE_PROVIDER_ACTIVE | Should Be 'anthropic'
+        (Invoke-ProviderScript 'doctor.ps1').Exit | Should Be 0
+    }
+
+    It 'does not flag a hand-set model alone (e.g. /model)' {
+        $h = New-TestHome $TestDrive 'dr-handmodel'
+        $null = Write-TestProfile $h 'anthropic' '{"name":"anthropic","auth":{"type":"none"}}'
+        (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
+
+        $sPath = Join-Path $h '.claude\settings.json'
+        $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
+        $s | Add-Member -NotePropertyName model -NotePropertyValue 'opus'
+        [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))
+
+        $r = Invoke-ProviderScript 'doctor.ps1'
+        $r.Exit | Should Be 0
+        $r.Output | Should Not Match 'stray'
+    }
+
     It 'clears a stale lock with -Fix' {
         $h = New-TestHome $TestDrive 'dr-lock'
         $lockDir = Join-Path $h '.claude\provider-profiles\.state.lock'

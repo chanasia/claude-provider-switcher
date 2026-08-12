@@ -20,6 +20,12 @@
 #      a -Secret argument means a token leaked into a plain-text file)
 #  10. no plugin-managed keys left behind in the legacy file after
 #      migration
+#  11. no STRAY plugin-like keys in the settings file - keys shaped like
+#      the plugin's output but not owned by the sidecar (helper path
+#      inside the profile dir, base_url matching a profile). Found in
+#      real use: Claude Code itself writes settings.json, and a session
+#      left running across a switch can write stale provider keys back.
+#      A hand-set model alone (e.g. via /model) is never flagged.
 #
 # -Fix repairs what is safely repairable: recreates a missing sidecar,
 # re-renders missing/mismatched shims, removes orphans, deletes permission
@@ -304,6 +310,82 @@ if ($recordPath -ne $legacyPath -and (Test-Path -LiteralPath $legacyPath)) {
                 Add-Finding 'warn' 'legacy' "plugin keys left behind in the pre-0.1.9 location: $($leftover -join ', ')" 'removed'
             } else {
                 Add-Finding 'warn' 'legacy' "plugin keys left behind in the pre-0.1.9 location ($legacyPath): $($leftover -join ', ') (run with --fix to remove)"
+            }
+        }
+    }
+}
+
+# ---- 11. stray plugin-like keys the sidecar does not own ----
+# Claude Code itself writes the settings file (plugin registry, /model
+# persistence), and a session left running across a switch can write
+# stale provider keys back after apply-profile cleaned them; manual
+# edits leave the same shape. Only keys that are recognizably the
+# plugin's are flagged; keys the sidecar DOES own are drift (check 6),
+# never touched here.
+if (Test-Path -LiteralPath $settingsPath) {
+    $strayDoc = $null
+    try { $strayDoc = Read-JsonFile -Path $settingsPath } catch { $strayDoc = $null }
+    if ($null -ne $strayDoc) {
+        $strayEnv = Get-Prop $strayDoc 'env'
+        $mgKeys = @()
+        $helperManaged = $false
+        $modelManaged = $false
+        if ($null -ne $scope) {
+            $mk = Get-Prop $scope 'managed_env_keys'
+            if ($null -ne $mk) { $mgKeys = @($mk) }
+            $helperManaged = ((Get-Prop $scope 'managed_api_key_helper') -eq $true)
+            $modelManaged = ((Get-Prop $scope 'managed_model') -eq $true)
+        }
+
+        $profileDocs = @{}
+        foreach ($pf in $profileFiles) {
+            try { $profileDocs[$pf.BaseName] = Read-JsonFile -Path $pf.FullName } catch { $profileDocs.Remove($pf.BaseName) }
+        }
+
+        $stray = New-Object System.Collections.Generic.List[string]
+        $strayHelperProfile = ''
+
+        $docHelper = [string](Get-Prop $strayDoc 'apiKeyHelper')
+        if (-not $helperManaged -and $docHelper -ne '' -and
+            $docHelper.StartsWith((Get-ProfileDir), [System.StringComparison]::OrdinalIgnoreCase)) {
+            $stray.Add('apiKeyHelper')
+            $strayHelperProfile = [System.IO.Path]::GetFileNameWithoutExtension($docHelper)
+        }
+        if ($mgKeys -notcontains 'CLAUDE_PROVIDER_ACTIVE' -and $null -ne (Get-Prop $strayEnv 'CLAUDE_PROVIDER_ACTIVE')) {
+            $stray.Add('env.CLAUDE_PROVIDER_ACTIVE')
+        }
+        if ($mgKeys -notcontains 'ANTHROPIC_BASE_URL') {
+            $docBase = [string](Get-Prop $strayEnv 'ANTHROPIC_BASE_URL')
+            if ($docBase -ne '') {
+                foreach ($pd in $profileDocs.Values) {
+                    if ([string](Get-Prop $pd 'base_url') -ceq $docBase) { $stray.Add('env.ANTHROPIC_BASE_URL'); break }
+                }
+            }
+        }
+        # model is flagged ONLY next to a stray helper of the same profile:
+        # a bare unmanaged model is a legitimate hand choice (e.g. /model).
+        if (-not $modelManaged -and $strayHelperProfile -ne '' -and $profileDocs.ContainsKey($strayHelperProfile)) {
+            $docModel = [string](Get-Prop $strayDoc 'model')
+            if ($docModel -ne '' -and $docModel -ceq [string](Get-Prop $profileDocs[$strayHelperProfile] 'model')) {
+                $stray.Add('model')
+            }
+        }
+
+        if ($stray.Count -gt 0) {
+            if ($Fix) {
+                foreach ($k in $stray.ToArray()) {
+                    if ($k -eq 'apiKeyHelper' -or $k -eq 'model') {
+                        $strayDoc.PSObject.Properties.Remove($k)
+                    } elseif ($k.StartsWith('env.')) {
+                        $envKey = $k.Substring(4)
+                        if ($null -ne $strayEnv -and $null -ne $strayEnv.PSObject.Properties[$envKey]) { $strayEnv.PSObject.Properties.Remove($envKey) }
+                    }
+                }
+                if ($null -ne $strayEnv -and @($strayEnv.PSObject.Properties).Count -eq 0) { $strayDoc.PSObject.Properties.Remove('env') }
+                Write-AtomicFile -Path $settingsPath -Content (($strayDoc | ConvertTo-Json -Depth 10) + "`n")
+                Add-Finding 'warn' 'stray' "unmanaged plugin keys in $(Split-Path -Leaf $settingsPath): $($stray -join ', ')" 'removed - typically written back by a session that was still running during a switch'
+            } else {
+                Add-Finding 'warn' 'stray' "unmanaged plugin keys in $(Split-Path -Leaf $settingsPath): $($stray -join ', ') (not owned by the sidecar; run with --fix to remove)"
             }
         }
     }
