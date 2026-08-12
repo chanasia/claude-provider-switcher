@@ -1,0 +1,68 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pester:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show PowerShell version
+        shell: powershell
+        run: $PSVersionTable | Format-List
+
+      - name: Run Pester suite
+        shell: powershell
+        run: |
+          $result = Invoke-Pester -Path .\tests -PassThru
+          if ($result.FailedCount -gt 0) {
+            Write-Error "$($result.FailedCount) test(s) failed"
+            exit 1
+          }
+          Write-Output "$($result.PassedCount) test(s) passed"
+
+  analyze:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PSScriptAnalyzer
+        shell: powershell
+        run: Install-Module PSScriptAnalyzer -Force -Scope CurrentUser -SkipPublisherCheck
+
+      - name: Run PSScriptAnalyzer
+        shell: powershell
+        run: |
+          # Exit-code constants and $Fix live in dot-sourced or param scope,
+          # which the analyzer cannot see across file boundaries.
+          $issues = Invoke-ScriptAnalyzer -Path .\scripts -Recurse -Severity Error, Warning `
+            -ExcludeRule PSUseDeclaredVarsMoreThanAssignments, PSUseShouldProcessForStateChangingFunctions, PSAvoidUsingWriteHost
+          if ($issues) {
+            $issues | Format-Table -AutoSize | Out-String -Width 200 | Write-Output
+            Write-Error "$($issues.Count) analyzer finding(s)"
+            exit 1
+          }
+          Write-Output 'PSScriptAnalyzer clean'
+
+  ascii:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scripts must be pure ASCII
+        shell: powershell
+        run: |
+          # Windows PowerShell 5.1 reads BOM-less .ps1 files as ANSI, so a
+          # non-ASCII character inside a string breaks parsing at runtime.
+          $bad = Get-ChildItem -Recurse -File -Include *.ps1, *.tmpl, *.cmd |
+            Where-Object { [System.IO.File]::ReadAllText($_.FullName) -match '[^\x00-\x7F]' }
+          if ($bad) {
+            $bad | ForEach-Object { Write-Output $_.FullName }
+            Write-Error 'non-ASCII characters found in executable files'
+            exit 1
+          }
+          Write-Output 'all executable files are ASCII'

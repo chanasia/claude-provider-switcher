@@ -8,7 +8,7 @@
 
 ## Status
 
-**v0.1.0 — in development.**
+**v0.1.0 — all seven commands implemented, 95 Pester tests green on Windows PowerShell 5.1.**
 
 ## Prerequisites
 
@@ -77,6 +77,40 @@ claude --plugin-dir path\to\claude-provider-switcher
 ```
 
 Inside the session run `/provider:init`, then `/provider:list` to confirm.
+
+## Typical flow
+
+```
+/provider:init                    seed ~/.claude/provider-profiles/
+/provider:add                     create a gateway profile; token goes to Credential Manager
+/provider:switch work-gateway     writes the config, reports "restart required"
+  (exit Claude Code, start it again)
+/provider:current                 confirms the session is really on it
+/model some/other-model           change model mid-session, no restart
+/provider:switch anthropic        back to your subscription (restart again)
+```
+
+## Troubleshooting
+
+**"I switched but nothing changed."**
+Claude Code reads provider environment variables at process startup. Exit and relaunch. Exit code 9 from `switch` is the plugin saying exactly this. `/provider:current` will show `STALE` until you do.
+
+**`/provider:switch` reports drift.**
+Something other than the plugin edited a plugin-managed key in `settings.local.json` since the last switch. The command offers three resolutions: overwrite with the new profile's values, incorporate the hand-edits where the new profile doesn't manage them, or cancel. A drifted `apiKeyHelper` can only be overwritten or cancelled, never silently incorporated.
+
+**"No credential stored in Windows Credential Manager."**
+The profile references a target that has no credential. Store one without putting it on a command line:
+
+```powershell
+Get-Content token.txt | powershell -NoProfile -File scripts\set-credential.ps1 -Target "claude-provider/work-gateway"
+```
+
+**Running the scripts directly.**
+Every script is standalone and takes `-Json` or `-Fix` where relevant. `CLAUDE_PROVIDER_HOME` overrides `$HOME`, which is how the test suite stays out of your real `~/.claude`.
+
+## Portability
+
+v0.1.0 is Windows-only in its *auth and helper* layer; everything else (validation, drift, sidecar, merge) is OS-agnostic JSON logic. Porting to macOS/Linux means reimplementing two marked regions — `#region platform` in [`scripts/lib.ps1`](./scripts/lib.ps1) (credential storage) and the shim templates in [`templates/`](./templates/) — against `security` or `secret-tool`. See [`docs/design.md`](./docs/design.md) §8.
 
 ## License
 
