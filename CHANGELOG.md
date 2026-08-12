@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/provider:edit` for flag-driven field changes
 - macOS / Linux port of the credential and shim layers
 
+## [0.1.3]
+
+### Added
+
+- **Offline `provider` CLI** (`/provider:install-cli`): installs a
+  `provider` command onto the user Path that dispatches to the standalone
+  scripts with no model and no network - the escape hatch for when a
+  switch lands on a broken provider and slash commands cannot run.
+  `provider switch anthropic` recovers the session from any terminal.
+- README: "Locked out" troubleshooting and "Offline CLI" sections.
+
 ## [0.1.2]
 
 ### Changed
