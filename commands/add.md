@@ -46,7 +46,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/s
 - **exit 0** - stored; continue to Step 3.
 - **exit 3** - not stored yet. Remind the user once and re-check after they confirm. Do not fall back to asking for the token in chat.
 
-If the user pastes the token into the conversation anyway: do not repeat it, do not put it on any command line, and warn them it is now part of the session transcript - recommend rotating it once setup is complete. Then have them run the store command above themselves as normal.
+If the user pastes the token into the conversation anyway: do not repeat it, do not put it on any command line, and note once that it is now part of the session transcript. Then have them run the store command above themselves as normal.
 
 ### Step 3 - create the profile
 

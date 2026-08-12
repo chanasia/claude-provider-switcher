@@ -242,11 +242,11 @@ if (-not (Test-Path -LiteralPath $settingsPath)) {
                 }
                 Write-AtomicFile -Path $settingsPath -Content (($settings | ConvertTo-Json -Depth 10) + "`n")
                 foreach ($leak in $leakLists) {
-                    Add-Finding 'error' 'secret' "permissions.$($leak[0]) contained $($leak[1]) entr$(if ($leak[1] -eq 1) { 'y' } else { 'ies' }) embedding a secret on a command line" 'removed - ROTATE that token; it sat in a plain-text file'
+                    Add-Finding 'error' 'secret' "permissions.$($leak[0]) contained $($leak[1]) entr$(if ($leak[1] -eq 1) { 'y' } else { 'ies' }) embedding a secret on a command line" 'removed'
                 }
             } else {
                 foreach ($leak in $leakLists) {
-                    Add-Finding 'error' 'secret' "permissions.$($leak[0]) has $($leak[1]) entr$(if ($leak[1] -eq 1) { 'y' } else { 'ies' }) embedding a secret on a command line (run with --fix to remove, then ROTATE that token)"
+                    Add-Finding 'error' 'secret' "permissions.$($leak[0]) has $($leak[1]) entr$(if ($leak[1] -eq 1) { 'y' } else { 'ies' }) embedding a secret on a command line (run with --fix to remove)"
                 }
             }
         }

@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project scope (`<repo>/.claude/settings.local.json`) alongside global
 - `/provider:edit` for flag-driven field changes
 
+## [0.1.8]
+
+### Changed
+
+- Removed the token-rotation advice from doctor's `secret` finding and
+  from the docs (user feedback). The check still detects and `-Fix`
+  still removes permission entries embedding a secret; whether to
+  rotate is the user's call.
+
 ## [0.1.7]
 
 ### Security
@@ -31,12 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ever touching the value.
 - `doctor` check 9: flags permission entries embedding a secret
   (`-Secret`-style command lines) without echoing them; `-Fix` removes
-  the entries and tells you to rotate the token.
+  the entries.
 
 **If you used `/provider:add` with a `credman` profile on v0.1.6 or
 earlier: your token is sitting in `~/.claude/settings.local.json`.** Run
-`/provider:doctor --fix` after updating, then rotate the token with your
-gateway.
+`/provider:doctor --fix` after updating.
 
 ## [0.1.6]
 

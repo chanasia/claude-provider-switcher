@@ -377,7 +377,7 @@ Describe 'doctor.ps1' {
         [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))
 
         $r = Invoke-ProviderScript 'doctor.ps1' @('-Fix')
-        $r.Output | Should Match 'ROTATE'
+        $r.Output | Should Match 'FIXED: removed'
         $r.Output | Should Not Match 'sk-leaked-token-value'
 
         $after = [System.IO.File]::ReadAllText($sPath)
