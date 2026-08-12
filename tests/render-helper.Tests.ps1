@@ -46,8 +46,15 @@ Describe 'render-helper.ps1' {
         $p = Write-TestProfile $home1 'gw' '{"name":"gw","auth":{"type":"env_var","var":"CPS_DEFINITELY_UNSET_VAR"}}'
         $null = Invoke-ProviderScript 'render-helper.ps1' @($p)
         $ps1 = Join-Path $home1 '.claude\provider-profiles\.helpers\gw.ps1'
-        $null = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps1 2>&1
-        $LASTEXITCODE | Should Be 1
+        $prev = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $null = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ps1 2>&1
+            $code = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $prev
+        }
+        $code | Should Be 1
     }
 
     It 'renders an executable credman shim (end-to-end through the .cmd wrapper)' {

@@ -15,9 +15,18 @@ function New-ProfileFile {
 
 function Invoke-Validate {
     param([string[]]$Arguments = @())
-    $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $validateScript @Arguments 2>&1
+    # See Integration.Helpers.ps1: expected child stderr must not terminate
+    # the test under ErrorActionPreference=Stop hosts (GitHub Actions).
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $validateScript @Arguments 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+    }
     return New-Object PSObject -Property @{
-        Exit   = $LASTEXITCODE
+        Exit   = $code
         Output = (($out | ForEach-Object { "$_" }) -join "`n")
     }
 }

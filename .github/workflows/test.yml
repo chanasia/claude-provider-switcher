@@ -30,6 +30,10 @@ jobs:
         run: |
           Import-Module Pester -RequiredVersion 3.4.0 -Force
           Write-Output "Pester $((Get-Module Pester).Version)"
+          # The runner's shell wrapper sets ErrorActionPreference=Stop, which
+          # turns expected child-process stderr (redirected with 2>&1 in test
+          # helpers) into terminating errors. Local default is Continue.
+          $ErrorActionPreference = 'Continue'
           $result = Invoke-Pester -Path .\tests -PassThru
           if ($result.FailedCount -gt 0) {
             Write-Error "$($result.FailedCount) test(s) failed"

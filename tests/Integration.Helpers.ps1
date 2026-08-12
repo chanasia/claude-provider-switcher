@@ -8,10 +8,21 @@ function Invoke-ProviderScript {
         [string]$Script,
         [string[]]$Arguments = @()
     )
-    $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass `
-        -File (Join-Path $script:ScriptsDir $Script) @Arguments 2>&1
+    # Under ErrorActionPreference=Stop (e.g. the GitHub Actions shell
+    # wrapper), 2>&1-redirected child stderr becomes a terminating error.
+    # Expected stderr is part of what these tests assert on, so relax it
+    # for the duration of the call.
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass `
+            -File (Join-Path $script:ScriptsDir $Script) @Arguments 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+    }
     return New-Object PSObject -Property @{
-        Exit   = $LASTEXITCODE
+        Exit   = $code
         Output = (($out | ForEach-Object { "$_" }) -join "`n")
     }
 }
