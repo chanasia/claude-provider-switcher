@@ -4,6 +4,8 @@ description: Create a new provider profile (stores the token in Windows Credenti
 
 Create a new provider profile interactively. Gather the fields with `AskUserQuestion`, then call the script once with everything filled in.
 
+This wizard is for **gateway/proxy profiles**. Do not offer "Anthropic direct" as an endpoint choice: the seeded `anthropic` profile already covers it, and a second auth:none profile adds nothing. The one exception - the user explicitly asks for an Anthropic-direct variant with a different default model (e.g. `anthropic-opus`) - is theirs to raise, not yours to suggest. If the user seems to want Anthropic direct and the `anthropic` profile is missing, point them to `/provider:init` instead.
+
 ### Step 1 - collect the fields
 
 Ask only what you need, and prefer one `AskUserQuestion` call with several questions over a long back-and-forth.
@@ -12,8 +14,8 @@ Ask only what you need, and prefer one `AskUserQuestion` call with several quest
 |---|---|
 | `name` | Profile identifier. Must match `^[a-z0-9][a-z0-9-]{0,62}$` - lowercase letters, digits, hyphens. Suggest one derived from the endpoint (e.g. `work-gateway`). |
 | `description` | Optional, one line, at most 200 characters. |
-| `base_url` | The Anthropic-compatible endpoint. Must be `https://` unless the host is `localhost` or `127.0.0.1`. Leave empty for Anthropic direct. |
-| `auth type` | `none` for Anthropic subscription/OAuth; `credman` for a token in Windows Credential Manager (recommended for gateways); `env_var` for a token already in an environment variable. |
+| `base_url` | The Anthropic-compatible endpoint. Must be `https://` unless the host is `localhost` or `127.0.0.1`. If other gateway profiles already exist, offer their endpoint as the default choice. |
+| `auth type` | `credman` for a token in Windows Credential Manager (recommended); `env_var` for a token already in an environment variable. (`none` exists but belongs to the seeded `anthropic` profile - see above.) |
 | `model` | Optional default model for new sessions. Ask only when a `base_url` was given, since gateway model names are specific to the gateway. |
 | `ttl_ms` | Optional. Only worth asking about when the gateway issues short-lived tokens; 300000 (5 min) is a reasonable default. Skip otherwise. |
 | `extras` | Optional extra environment variables as `KEY=VALUE`. Do not offer this unprompted. |

@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/provider:edit` for flag-driven field changes
 - macOS / Linux port of the credential and shim layers
 
+## [0.1.4]
+
+### Changed
+
+- `/provider:add` no longer offers "Anthropic direct" as an endpoint
+  choice (user feedback): the seeded `anthropic` profile already covers
+  it, so the wizard is now explicitly for gateway/proxy profiles. When
+  other gateway profiles exist, their endpoint is offered as the default.
+
 ## [0.1.3]
 
 ### Added
