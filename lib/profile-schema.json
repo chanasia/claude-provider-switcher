@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "claude-provider-switcher profile",
+  "description": "Profile schema for claude-provider-switcher v0.1.0. Machine-readable companion to docs/design.md §3. Enforcement lives in scripts/validate-profile.ps1.",
+  "type": "object",
+  "required": ["name", "auth"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+      "description": "Profile identifier. MUST equal the filename basename."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "base_url": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "description": "LLM endpoint URL. MUST be https:// except for localhost/127.0.0.1."
+    },
+    "auth": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "none" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "target"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "credman" },
+            "target": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_./-]{1,255}$",
+              "description": "Windows Credential Manager generic-credential target name. Pattern rejects shell metacharacters."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "var"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "env_var" },
+            "var": {
+              "type": "string",
+              "pattern": "^[A-Z_][A-Z0-9_]*$"
+            }
+          }
+        }
+      ]
+    },
+    "model": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:/-]{1,128}$",
+      "description": "Default model for new sessions. Written as the top-level `model` key in settings.local.json."
+    },
+    "ttl_ms": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 86400000
+    },
+    "extras": {
+      "type": "object",
+      "patternProperties": {
+        "^[A-Z_][A-Z0-9_]*$": { "type": "string" }
+      },
+      "additionalProperties": false,
+      "description": "Free-form env vars for the session. Keys MUST NOT appear in the extras denylist (docs/design.md §3). Enforced at validate-time and apply-time."
+    }
+  }
+}
