@@ -9,9 +9,19 @@ pure PowerShell.
 1. **No secret material in plugin-managed files.** Profile JSONs, the sidecar,
    and rendered helper shims contain only *references* (Credential Manager
    target names, env var names) — never tokens.
-2. **Plugin writes only to `settings.local.json`** (global:
-   `~/.claude/settings.local.json`), never `settings.json`. Machine-specific
-   auth stays out of dotfiles repos.
+2. **Plugin writes only to the user-scope `~/.claude/settings.json`**, and
+   only the keys it manages (tracked in the sidecar); it never touches any
+   *project* settings file (`<repo>/.claude/settings.json` or
+   `settings.local.json`), so machine-specific auth stays out of dotfiles
+   and project repos.
+   *History:* versions <= 0.1.8 wrote `~/.claude/settings.local.json`,
+   believing it was a user-scope file. It is not — `settings.local.json`
+   is a project-level concept only, and Claude Code read that path solely
+   when started from the home directory (home being that session's
+   "project"). Discovered in real use as "the profile only applies in
+   some folders". apply-profile migrates the managed keys out of the
+   legacy file (the sidecar's `target_file` records which file holds the
+   current record); doctor flags leftovers.
 3. **Sidecar-first crash-safe ordering.** The sidecar (`.state.json`) records
    what the plugin is about to manage *before* the target settings file is
    written. A crash between the two writes leaves a recoverable state.
@@ -103,10 +113,15 @@ Per scope (v0.1: `global` only) the sidecar records:
     "managed_model_value": "some/model-name",
     "managed_api_key_helper": true,
     "managed_api_key_helper_value": "C:\\Users\\me\\.claude\\provider-profiles\\.helpers\\gateway-example.cmd",
-    "target_file": "C:\\Users\\me\\.claude\\settings.local.json"
+    "target_file": "C:\\Users\\me\\.claude\\settings.json"
   }
 }
 ```
+
+`target_file` records which settings file holds this record. It doubles as
+the migration marker: pre-0.1.9 sidecars point at the legacy
+`~/.claude/settings.local.json`, and apply-profile then checks drift
+against that file and moves the managed keys to `settings.json`.
 
 Managed env keys are always `CLAUDE_PROVIDER_ACTIVE` (session marker), plus
 `ANTHROPIC_BASE_URL` (if `base_url`), `CLAUDE_CODE_API_KEY_HELPER_TTL_MS`
@@ -120,9 +135,12 @@ Managed env keys are always `CLAUDE_PROVIDER_ACTIVE` (session marker), plus
 2. Read target settings file (must be valid JSON if present).
 3. Read sidecar scope entry (missing sidecar file ⇒ empty scope; *corrupt*
    sidecar ⇒ refuse, exit 1 — silently treating it as empty would strand
-   previously managed keys).
+   previously managed keys). Resolve the record file from `target_file`;
+   if it is the legacy location, this switch is also a migration.
 4. **Drift detection** over every previously managed env key + `model` +
-   `apiKeyHelper`. On drift: exit 8 unless `-AcceptDrift overwrite`
+   `apiKeyHelper`, compared against the *record* file (the legacy file
+   during migration; if the legacy file was deleted, there is nothing to
+   protect and drift is skipped). On drift: exit 8 unless `-AcceptDrift overwrite`
    (new profile wins) or `-AcceptDrift incorporate` (drifted keys not managed
    by the new profile are preserved as unmanaged; drifted `apiKeyHelper` can
    never be incorporated — overwrite or cancel only).
@@ -134,7 +152,9 @@ Managed env keys are always `CLAUDE_PROVIDER_ACTIVE` (session marker), plus
 8. Merge new keys: extras first, plugin-managed keys last (plugin wins
    conflicts).
 9. Write sidecar (atomic) — **before** the target.
-10. Write settings (atomic).
+10. Write settings (atomic). During migration, then rewrite the legacy file
+    without the managed keys (or delete it if nothing remains) — a crash
+    before this tail leaves leftovers that doctor flags and fixes.
 11. Stale-env check: if `$env:CLAUDE_PROVIDER_ACTIVE` ≠ new profile name,
     exit 9 (restart required). Lock released via `finally`.
 
@@ -149,7 +169,7 @@ credman/env_var profile:
   stderr, non-zero exit on failure. Never logs.
 - `<name>.cmd` — one-line wrapper:
   `powershell -NoProfile -ExecutionPolicy Bypass -File "<abs path to ps1>"` —
-  this `.cmd` Windows path is what goes into `settings.local.json`'s
+  this `.cmd` Windows path is what goes into the settings file's
   `apiKeyHelper`.
 
 Rendering substitutes only values that already passed the schema regexes

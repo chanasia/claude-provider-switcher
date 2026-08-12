@@ -26,7 +26,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/s
 
 ### What it checks
 
-Profile directory and sidecar exist and parse; every profile validates; the active profile still exists; its helper shims are present; its auth reference resolves (credential stored / environment variable set); `settings.local.json` parses and still matches what the plugin wrote (drift); `apiKeyHelper` points at a real file; no orphaned shims, stale temp files, or stale locks.
+Profile directory and sidecar exist and parse; every profile validates; the active profile still exists; its helper shims are present; its auth reference resolves (credential stored / environment variable set); the managed settings file parses and still matches what the plugin wrote (drift); `apiKeyHelper` points at a real file; no orphaned shims, stale temp files, or stale locks; no secrets recorded in settings permissions; no plugin keys stranded in the pre-0.1.9 location (`~/.claude/settings.local.json`).
 
 It never runs a helper shim and never reads a secret's value - existence checks only.
 
@@ -36,6 +36,6 @@ Repairs: recreates a missing or corrupt sidecar, re-renders missing helper shims
 
 Does **not** repair drift. Drift means someone hand-edited plugin-managed settings, and choosing what wins is the user's call - route that through `/provider:switch <name>`, which offers Overwrite / Incorporate / Cancel. If `--fix` reset a corrupt sidecar, tell the user to re-run `/provider:switch <name>` so the plugin knows what it manages again.
 
-Does not fix a malformed `settings.local.json`. The plugin refuses to overwrite a file it cannot parse; that one needs a hand edit.
+Does not fix a malformed settings file. The plugin refuses to overwrite a file it cannot parse; that one needs a hand edit.
 
 After relaying the report (and helping with any errors it names), end the command. Do not ask follow-up questions or offer "next step" menus.

@@ -123,7 +123,7 @@ Describe 'apply-profile.ps1 switching' {
         $null = Write-TestProfile $h 'gw' $gwJson
         # Pre-existing user settings that the plugin must never touch.
         $null = New-Item -ItemType Directory -Path (Join-Path $h '.claude') -Force
-        [System.IO.File]::WriteAllText((Join-Path $h '.claude\settings.local.json'),
+        [System.IO.File]::WriteAllText((Join-Path $h '.claude\settings.json'),
             '{"permissions":{"allow":["Bash(git:*)"]},"env":{"MY_CUSTOM_FLAG":"1"}}')
 
         (Invoke-ProviderScript 'apply-profile.ps1' @('gw')).Exit | Should Be 9
@@ -151,7 +151,7 @@ Describe 'apply-profile.ps1 drift' {
         (Invoke-ProviderScript 'apply-profile.ps1' @('gw')).Exit | Should Be 9
 
         # Hand-edit a managed key.
-        $sPath = Join-Path $h '.claude\settings.local.json'
+        $sPath = Join-Path $h '.claude\settings.json'
         $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
         $s.env.ANTHROPIC_BASE_URL = 'https://tampered.example.com'
         [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))
@@ -174,7 +174,7 @@ Describe 'apply-profile.ps1 drift' {
         (Invoke-ProviderScript 'apply-profile.ps1' @('gw')).Exit | Should Be 9
 
         # Hand-edit the managed extras key.
-        $sPath = Join-Path $h '.claude\settings.local.json'
+        $sPath = Join-Path $h '.claude\settings.json'
         $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
         $s.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '128000'
         [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))
@@ -195,7 +195,7 @@ Describe 'apply-profile.ps1 drift' {
         $null = Write-TestProfile $h 'gw' $gwJson
         (Invoke-ProviderScript 'apply-profile.ps1' @('gw')).Exit | Should Be 9
 
-        $sPath = Join-Path $h '.claude\settings.local.json'
+        $sPath = Join-Path $h '.claude\settings.json'
         $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
         $s.apiKeyHelper = 'C:\evil\stealer.cmd'
         [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))
@@ -204,6 +204,104 @@ Describe 'apply-profile.ps1 drift' {
         $r.Exit | Should Be 8
         $r.Output | Should Match 'apiKeyHelper drift cannot be incorporated'
     }
+}
+
+Describe 'apply-profile.ps1 migration from <= 0.1.8' {
+    $env:CPS_APPLY_TEST_KEY = 'sk-fake-apply-key'
+
+    # Builds the on-disk state a 0.1.8 install leaves behind: managed keys
+    # in .claude\settings.local.json and a sidecar whose target_file points
+    # there. Done by applying normally, then relocating the settings file
+    # and rewriting the sidecar pointer.
+    function New-LegacyState {
+        param([string]$TestHome, [string]$ExtraJsonKeys = '')
+        $newPath = Join-Path $TestHome '.claude\settings.json'
+        $legacyPath = Join-Path $TestHome '.claude\settings.local.json'
+        $content = [System.IO.File]::ReadAllText($newPath)
+        if ($ExtraJsonKeys -ne '') {
+            $doc = $content | ConvertFrom-Json
+            $extra = $ExtraJsonKeys | ConvertFrom-Json
+            foreach ($p in $extra.PSObject.Properties) {
+                $doc | Add-Member -NotePropertyName $p.Name -NotePropertyValue $p.Value -Force
+            }
+            $content = ($doc | ConvertTo-Json -Depth 10)
+        }
+        [System.IO.File]::WriteAllText($legacyPath, $content)
+        Remove-Item -LiteralPath $newPath -Force
+        $scPath = Join-Path $TestHome '.claude\provider-profiles\.state.json'
+        $sc = [System.IO.File]::ReadAllText($scPath) | ConvertFrom-Json
+        $sc.global.target_file = $legacyPath
+        [System.IO.File]::WriteAllText($scPath, ($sc | ConvertTo-Json -Depth 10))
+        return $legacyPath
+    }
+
+    It 'moves managed keys to settings.json and preserves the rest of the legacy file' {
+        $h = New-TestHome $TestDrive 'mig-full'
+        $null = Write-TestProfile $h 'anthropic' $anthropicJson
+        $null = Write-TestProfile $h 'gw' $gwJson
+        (Invoke-ProviderScript 'apply-profile.ps1' @('gw')).Exit | Should Be 9
+        $legacyPath = New-LegacyState $h '{"permissions":{"allow":["Bash(git:*)"]}}'
+
+        $r = Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')
+        $r.Exit | Should Be 9
+        $r.Output | Should Match 'migrated'
+
+        $s = Read-TestSettings $h
+        $s.env.CLAUDE_PROVIDER_ACTIVE | Should Be 'anthropic'
+        $s.env.PSObject.Properties['ANTHROPIC_BASE_URL'] | Should Be $null
+
+        # legacy file keeps the user's permissions but loses every managed key
+        $leg = [System.IO.File]::ReadAllText($legacyPath) | ConvertFrom-Json
+        @($leg.permissions.allow)[0] | Should Be 'Bash(git:*)'
+        $leg.PSObject.Properties['apiKeyHelper'] | Should Be $null
+        $leg.PSObject.Properties['model'] | Should Be $null
+        $leg.PSObject.Properties['env'] | Should Be $null
+
+        # sidecar now targets the new file
+        $sc = [System.IO.File]::ReadAllText((Join-Path $h '.claude\provider-profiles\.state.json')) | ConvertFrom-Json
+        $sc.global.target_file | Should Be (Join-Path $h '.claude\settings.json')
+    }
+
+    It 'deletes the legacy file when nothing else is left in it' {
+        $h = New-TestHome $TestDrive 'mig-empty'
+        $null = Write-TestProfile $h 'anthropic' $anthropicJson
+        $null = Write-TestProfile $h 'gw' $gwJson
+        (Invoke-ProviderScript 'apply-profile.ps1' @('gw')).Exit | Should Be 9
+        $legacyPath = New-LegacyState $h
+
+        (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
+        Test-Path -LiteralPath $legacyPath | Should Be $false
+    }
+
+    It 'still detects drift that happened in the legacy file' {
+        $h = New-TestHome $TestDrive 'mig-drift'
+        $null = Write-TestProfile $h 'anthropic' $anthropicJson
+        $null = Write-TestProfile $h 'gw' $gwJson
+        (Invoke-ProviderScript 'apply-profile.ps1' @('gw')).Exit | Should Be 9
+        $legacyPath = New-LegacyState $h
+
+        $s = [System.IO.File]::ReadAllText($legacyPath) | ConvertFrom-Json
+        $s.env.ANTHROPIC_BASE_URL = 'https://tampered.example.com'
+        [System.IO.File]::WriteAllText($legacyPath, ($s | ConvertTo-Json -Depth 10))
+
+        $r = Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')
+        $r.Exit | Should Be 8
+        $r.Output | Should Match 'ANTHROPIC_BASE_URL'
+    }
+
+    It 'proceeds cleanly when the legacy record file was deleted by hand' {
+        $h = New-TestHome $TestDrive 'mig-gone'
+        $null = Write-TestProfile $h 'anthropic' $anthropicJson
+        $null = Write-TestProfile $h 'gw' $gwJson
+        (Invoke-ProviderScript 'apply-profile.ps1' @('gw')).Exit | Should Be 9
+        $legacyPath = New-LegacyState $h
+        Remove-Item -LiteralPath $legacyPath -Force
+
+        (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
+        (Read-TestSettings $h).env.CLAUDE_PROVIDER_ACTIVE | Should Be 'anthropic'
+    }
+
+    Remove-Item Env:CPS_APPLY_TEST_KEY -ErrorAction SilentlyContinue
 }
 
 Describe 'get-active.ps1' {

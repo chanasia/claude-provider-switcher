@@ -35,7 +35,7 @@ Describe 'claude-provider anthropic' {
         $h = New-TestHome $TestDrive 'cli-drift'
         (Invoke-ProviderScript 'provider-cli.ps1' @('anthropic')).Exit | Should Be 9
 
-        $sPath = Join-Path $h '.claude\settings.local.json'
+        $sPath = Join-Path $h '.claude\settings.json'
         $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
         $s.env.CLAUDE_PROVIDER_ACTIVE = 'tampered'
         [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))
@@ -84,7 +84,7 @@ Describe 'claude-provider reset' {
             Set-Content -LiteralPath (Join-Path $bin 'claude-provider.ps1') -Value '# cli' -Encoding Ascii
 
             # user settings that must survive
-            $sPath = Join-Path $h '.claude\settings.local.json'
+            $sPath = Join-Path $h '.claude\settings.json'
             $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
             $s | Add-Member NoteProperty permissions (@{ allow = @('Bash(git:*)') })
             [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))

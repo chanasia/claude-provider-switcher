@@ -3,8 +3,9 @@
 # Removes EVERYTHING this plugin put on the machine, except the plugin
 # installation inside Claude Code itself:
 #
-#   1. plugin-managed keys in ~\.claude\settings.local.json (other keys
-#      in the file are preserved) -> the next session is Anthropic direct
+#   1. plugin-managed keys in ~\.claude\settings.json AND the legacy
+#      ~\.claude\settings.local.json (other keys in both files are
+#      preserved) -> the next session is Anthropic direct
 #   2. ~\.claude\provider-profiles\  (profiles, sidecar, shims, locks)
 #   3. Windows Credential Manager entries referenced by credman profiles
 #   4. the offline CLI in ~\.claude\bin (claude-provider.*, legacy
@@ -41,7 +42,7 @@ function Remove-Prop {
 # ---- confirmation ----
 if (-not $Force) {
     [Console]::Error.WriteLine('This removes ALL plugin state on this machine:')
-    [Console]::Error.WriteLine('  - plugin-managed keys in settings.local.json (back to Anthropic direct)')
+    [Console]::Error.WriteLine('  - plugin-managed keys in settings.json / settings.local.json (back to Anthropic direct)')
     [Console]::Error.WriteLine('  - every profile, the sidecar, and rendered helper shims')
     [Console]::Error.WriteLine('  - Credential Manager entries referenced by your profiles')
     [Console]::Error.WriteLine('  - the offline claude-provider CLI')
@@ -73,43 +74,51 @@ try {
         }
     }
 
-    # ---- 1. strip plugin-managed keys from settings.local.json ----
-    $settingsPath = Get-SettingsPath
-    if (Test-Path -LiteralPath $settingsPath) {
+    # ---- 1. strip plugin-managed keys from BOTH settings files ----
+    # Current location is ~\.claude\settings.json; versions <= 0.1.8 wrote
+    # ~\.claude\settings.local.json. Clean whichever exist.
+    $scope = $null
+    try { $scope = Read-SidecarScope -ScopeKey 'global' } catch { $scope = $null }
+    $scopeNoteShown = $false
+
+    foreach ($settingsPath in @((Get-SettingsPath), (Get-LegacySettingsPath))) {
+        if (-not (Test-Path -LiteralPath $settingsPath)) { continue }
         $settings = $null
         try { $settings = Read-JsonFile -Path $settingsPath } catch { $settings = $null }
         if ($null -eq $settings) {
             [Console]::Error.WriteLine("provider: warning: $settingsPath is not valid JSON - left untouched")
-        } else {
-            $settingsEnv = Get-Prop $settings 'env'
-            $scope = $null
-            try { $scope = Read-SidecarScope -ScopeKey 'global' } catch { $scope = $null }
-
-            if ($null -ne $scope) {
-                # normal path: the sidecar knows exactly what we manage
-                foreach ($key in @(Get-Prop $scope 'managed_env_keys')) {
-                    if ($null -ne $key) { Remove-Prop $settingsEnv ([string]$key) }
-                }
-                if ((Get-Prop $scope 'managed_model') -eq $true) { Remove-Prop $settings 'model' }
-                if ((Get-Prop $scope 'managed_api_key_helper') -eq $true) { Remove-Prop $settings 'apiKeyHelper' }
-            } else {
-                # sidecar unavailable: best-effort removal of known plugin keys
-                foreach ($key in @('CLAUDE_PROVIDER_ACTIVE', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_API_KEY_HELPER_TTL_MS')) {
-                    Remove-Prop $settingsEnv $key
-                }
-                $helper = [string](Get-Prop $settings 'apiKeyHelper')
-                if ($helper -ne '' -and $helper.StartsWith((Get-ProfileDir), [System.StringComparison]::OrdinalIgnoreCase)) {
-                    Remove-Prop $settings 'apiKeyHelper'
-                }
-                [Console]::Error.WriteLine('provider: note: sidecar unavailable - profile extras and model (if plugin-set) may remain in settings.local.json')
-            }
-
-            if ($null -ne $settingsEnv -and @($settingsEnv.PSObject.Properties).Count -eq 0) {
-                Remove-Prop $settings 'env'
-            }
-            Write-AtomicFile -Path $settingsPath -Content (($settings | ConvertTo-Json -Depth 10) + "`n")
-            $done.Add('settings.local.json: plugin-managed keys removed (other settings preserved)')
+            continue
         }
+        $settingsEnv = Get-Prop $settings 'env'
+
+        if ($null -ne $scope) {
+            # normal path: the sidecar knows exactly what we manage
+            foreach ($key in @(Get-Prop $scope 'managed_env_keys')) {
+                if ($null -ne $key) { Remove-Prop $settingsEnv ([string]$key) }
+            }
+            if ((Get-Prop $scope 'managed_model') -eq $true) { Remove-Prop $settings 'model' }
+            if ((Get-Prop $scope 'managed_api_key_helper') -eq $true) { Remove-Prop $settings 'apiKeyHelper' }
+        } else {
+            if (-not $scopeNoteShown) {
+                [Console]::Error.WriteLine('provider: note: sidecar unavailable - profile extras and model (if plugin-set) may remain in the settings files')
+                $scopeNoteShown = $true
+            }
+        }
+        # best-effort removal of known plugin keys, in both modes: the
+        # sidecar only describes ONE of the two files
+        foreach ($key in @('CLAUDE_PROVIDER_ACTIVE', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_API_KEY_HELPER_TTL_MS')) {
+            Remove-Prop $settingsEnv $key
+        }
+        $helper = [string](Get-Prop $settings 'apiKeyHelper')
+        if ($helper -ne '' -and $helper.StartsWith((Get-ProfileDir), [System.StringComparison]::OrdinalIgnoreCase)) {
+            Remove-Prop $settings 'apiKeyHelper'
+        }
+
+        if ($null -ne $settingsEnv -and @($settingsEnv.PSObject.Properties).Count -eq 0) {
+            Remove-Prop $settings 'env'
+        }
+        Write-AtomicFile -Path $settingsPath -Content (($settings | ConvertTo-Json -Depth 10) + "`n")
+        $done.Add("$(Split-Path -Leaf $settingsPath): plugin-managed keys removed (other settings preserved)")
     }
 
     # ---- 2. delete the profile directory ----

@@ -10,8 +10,14 @@ Describe 'Path helpers' {
         Get-ProfileDir | Should Be (Join-Path $TestDrive '.claude\provider-profiles')
     }
 
-    It 'Get-SettingsPath points at settings.local.json (never settings.json)' {
-        Get-SettingsPath | Should Be (Join-Path $TestDrive '.claude\settings.local.json')
+    It 'Get-SettingsPath points at the user-scope settings.json' {
+        # settings.local.json is a PROJECT-level file only; Claude Code
+        # never reads a user-level one (the <= 0.1.8 bug).
+        Get-SettingsPath | Should Be (Join-Path $TestDrive '.claude\settings.json')
+    }
+
+    It 'Get-LegacySettingsPath points at the pre-0.1.9 settings.local.json' {
+        Get-LegacySettingsPath | Should Be (Join-Path $TestDrive '.claude\settings.local.json')
     }
 
     It 'Get-ProfilePath appends .json' {

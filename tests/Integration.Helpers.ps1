@@ -46,7 +46,7 @@ function Write-TestProfile {
 
 function Read-TestSettings {
     param([string]$TestHome)
-    $path = Join-Path $TestHome '.claude\settings.local.json'
+    $path = Join-Path $TestHome '.claude\settings.json'
     if (-not (Test-Path -LiteralPath $path)) { return $null }
     return ([System.IO.File]::ReadAllText($path) | ConvertFrom-Json)
 }

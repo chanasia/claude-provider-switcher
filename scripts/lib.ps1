@@ -39,6 +39,19 @@ function Get-HelpersDir {
 }
 
 function Get-SettingsPath {
+    # User-scope settings, read by Claude Code in EVERY project directory.
+    # settings.local.json is a PROJECT-level concept only: versions <= 0.1.8
+    # wrote there and the config was silently ignored unless Claude Code
+    # happened to be started from the home directory (which made home the
+    # "project" and its .claude/settings.local.json that project's local
+    # settings). See Get-LegacySettingsPath for the migration path.
+    return (Join-Path (Get-ProviderUserHome) '.claude\settings.json')
+}
+
+function Get-LegacySettingsPath {
+    # Where versions <= 0.1.8 wrote managed keys. apply-profile migrates
+    # away from it (sidecar target_file records which file holds the
+    # current record); doctor flags leftovers.
     return (Join-Path (Get-ProviderUserHome) '.claude\settings.local.json')
 }
 

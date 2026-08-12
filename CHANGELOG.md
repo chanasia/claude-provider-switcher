@@ -14,6 +14,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project scope (`<repo>/.claude/settings.local.json`) alongside global
 - `/provider:edit` for flag-driven field changes
 
+## [0.1.9]
+
+### Fixed
+
+- **Profiles now apply in EVERY project directory.** Versions up to 0.1.8
+  wrote managed keys to `~/.claude/settings.local.json`, assuming it was
+  a user-scope file. It is not: `settings.local.json` is a project-level
+  concept only, so Claude Code read that path solely when started from
+  the home directory (home being that session's "project"). The symptom,
+  found in real use: switch works in a terminal at `%USERPROFILE%`, but a
+  session started inside any project still runs the old provider.
+  The plugin now writes to the real user-scope file,
+  `~/.claude/settings.json` - managed keys only; everything else in the
+  file is preserved, and project settings files are never touched.
+
+### Migration
+
+Automatic. The sidecar's `target_file` records where the current record
+lives; the first `/provider:switch` after updating checks drift against
+the legacy file, moves the managed keys to `settings.json`, and cleans
+the legacy file (deleting it if nothing else remains). `doctor` warns
+while the record is still in the legacy location and flags leftovers;
+`--fix` removes them.
+
 ## [0.1.8]
 
 ### Changed

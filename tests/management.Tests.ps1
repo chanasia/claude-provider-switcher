@@ -282,7 +282,7 @@ Describe 'doctor.ps1' {
         $null = Write-TestProfile $h 'anthropic' '{"name":"anthropic","auth":{"type":"none"}}'
         (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
 
-        $sPath = Join-Path $h '.claude\settings.local.json'
+        $sPath = Join-Path $h '.claude\settings.json'
         $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
         $s.env.CLAUDE_PROVIDER_ACTIVE = 'tampered'
         [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))
@@ -342,12 +342,51 @@ Describe 'doctor.ps1' {
         Test-Path (Join-Path $helpers 'ghost.cmd') | Should Be $false
     }
 
+    It 'warns when the sidecar still targets the pre-0.1.9 legacy file' {
+        $h = New-TestHome $TestDrive 'dr-legacyrec'
+        $null = Write-TestProfile $h 'anthropic' '{"name":"anthropic","auth":{"type":"none"}}'
+        (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
+
+        # relocate the record the way a 0.1.8 install left it
+        $newPath = Join-Path $h '.claude\settings.json'
+        $legacyPath = Join-Path $h '.claude\settings.local.json'
+        Move-Item -LiteralPath $newPath -Destination $legacyPath -Force
+        $scPath = Join-Path $h '.claude\provider-profiles\.state.json'
+        $sc = [System.IO.File]::ReadAllText($scPath) | ConvertFrom-Json
+        $sc.global.target_file = $legacyPath
+        [System.IO.File]::WriteAllText($scPath, ($sc | ConvertTo-Json -Depth 10))
+
+        $r = Invoke-ProviderScript 'doctor.ps1'
+        $r.Exit | Should Be 0
+        $r.Output | Should Match 'pre-0.1.9'
+        $r.Output | Should Match 'migrate'
+    }
+
+    It 'flags and removes plugin keys left behind in the legacy file with -Fix' {
+        $h = New-TestHome $TestDrive 'dr-legacyleft'
+        $null = Write-TestProfile $h 'anthropic' '{"name":"anthropic","auth":{"type":"none"}}'
+        (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
+
+        $legacyPath = Join-Path $h '.claude\settings.local.json'
+        [System.IO.File]::WriteAllText($legacyPath,
+            '{"env":{"CLAUDE_PROVIDER_ACTIVE":"stale","ANTHROPIC_BASE_URL":"https://old.example.com"},"permissions":{"allow":["Bash(echo hi)"]}}')
+
+        $r = Invoke-ProviderScript 'doctor.ps1'
+        $r.Output | Should Match 'left behind'
+
+        $null = Invoke-ProviderScript 'doctor.ps1' @('-Fix')
+        $leg = [System.IO.File]::ReadAllText($legacyPath) | ConvertFrom-Json
+        $leg.PSObject.Properties['env'] | Should Be $null
+        @($leg.permissions.allow)[0] | Should Be 'Bash(echo hi)'
+        (Invoke-ProviderScript 'doctor.ps1').Exit | Should Be 0
+    }
+
     It 'flags a permissions entry embedding a secret without echoing it' {
         $h = New-TestHome $TestDrive 'dr-secretperm'
         $null = Write-TestProfile $h 'anthropic' '{"name":"anthropic","auth":{"type":"none"}}'
         (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
 
-        $sPath = Join-Path $h '.claude\settings.local.json'
+        $sPath = Join-Path $h '.claude\settings.json'
         $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
         $leaked = 'Bash(powershell.exe -File set-credential.ps1 -Target "t" -Secret "sk-leaked-token-value")'
         $s | Add-Member -NotePropertyName permissions -NotePropertyValue ([PSCustomObject]@{
@@ -366,7 +405,7 @@ Describe 'doctor.ps1' {
         $null = Write-TestProfile $h 'anthropic' '{"name":"anthropic","auth":{"type":"none"}}'
         (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
 
-        $sPath = Join-Path $h '.claude\settings.local.json'
+        $sPath = Join-Path $h '.claude\settings.json'
         $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
         $s | Add-Member -NotePropertyName permissions -NotePropertyValue ([PSCustomObject]@{
             allow = @(

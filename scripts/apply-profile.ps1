@@ -1,8 +1,14 @@
 # apply-profile.ps1 <name> [-AcceptDrift overwrite|incorporate]
 #
-# Core switch logic (design.md section 5). Applies a profile to the global
-# settings.local.json + sidecar atomically, with drift detection, advisory
-# locking, and crash-safe sidecar-first write ordering.
+# Core switch logic (design.md section 5). Applies a profile to the
+# user-scope ~/.claude/settings.json + sidecar atomically, with drift
+# detection, advisory locking, and crash-safe sidecar-first ordering.
+#
+# Migration: versions <= 0.1.8 wrote ~/.claude/settings.local.json, which
+# Claude Code only reads when started from the home directory. The sidecar
+# records which file holds the current record (target_file); when that is
+# the legacy file, drift is checked against IT, and after a successful
+# apply the managed keys are removed from it.
 #
 # v0.1.0 scope: global only.
 #
@@ -107,7 +113,7 @@ function Invoke-Apply {
         try {
             $settings = Read-JsonFile -Path $settingsPath
         } catch {
-            [Console]::Error.WriteLine("provider: settings.local.json is not valid JSON: $settingsPath")
+            [Console]::Error.WriteLine("provider: settings file is not valid JSON: $settingsPath")
             return $EXIT_RUNTIME
         }
     } else {
@@ -116,6 +122,35 @@ function Invoke-Apply {
 
     # ---- Step 3: read sidecar scope entry (corrupt sidecar throws) ----
     $prev = Read-SidecarScope -ScopeKey 'global'
+
+    # Where does the sidecar's record actually live? Pre-0.1.9 sidecars
+    # point target_file at the legacy settings.local.json - drift must be
+    # checked against THAT file, and the managed keys migrate out of it.
+    $recordPath = $settingsPath
+    if ($null -ne $prev) {
+        $tf = ''
+        $tfProp = $prev.PSObject.Properties['target_file']
+        if ($null -ne $tfProp) { $tf = [string]$tfProp.Value }
+        if ($tf -ne '') { $recordPath = $tf } else { $recordPath = Get-LegacySettingsPath }
+    }
+    $migrating = ($recordPath -ne $settingsPath)
+    $recordDoc = $settings
+    $legacyExists = $false
+    if ($migrating) {
+        if (Test-Path -LiteralPath $recordPath) {
+            try {
+                $recordDoc = Read-JsonFile -Path $recordPath
+                $legacyExists = $true
+            } catch {
+                [Console]::Error.WriteLine("provider: legacy settings file is not valid JSON: $recordPath")
+                [Console]::Error.WriteLine('  Fix or delete it by hand, then re-run the switch.')
+                return $EXIT_RUNTIME
+            }
+        } else {
+            # Legacy record file is gone - nothing to preserve or migrate.
+            $recordDoc = New-Object PSObject
+        }
+    }
 
     $prevKeys = @()
     $prevVals = $null
@@ -140,31 +175,37 @@ function Invoke-Apply {
     }
 
     # ---- Step 4: drift detection BEFORE any mutation ----
+    # Compared against the file the sidecar record was written to
+    # ($recordDoc) - during migration that is the legacy file. If the
+    # legacy file was deleted, there are no hand edits left to protect.
     $settingsEnv = Get-Prop $settings 'env'
+    $recordEnv = Get-Prop $recordDoc 'env'
     $driftKeys = New-Object System.Collections.Generic.List[string]
     $driftActual = @{}
     $helperDrifted = $false
 
-    foreach ($key in $prevKeys) {
-        $expected = [string](Get-Prop $prevVals $key)
-        $actual = [string](Get-Prop $settingsEnv $key)
-        if ($expected -cne $actual) {
-            $driftKeys.Add($key)
-            $driftActual[$key] = $actual
+    if (-not ($migrating -and -not $legacyExists)) {
+        foreach ($key in $prevKeys) {
+            $expected = [string](Get-Prop $prevVals $key)
+            $actual = [string](Get-Prop $recordEnv $key)
+            if ($expected -cne $actual) {
+                $driftKeys.Add($key)
+                $driftActual[$key] = $actual
+            }
         }
-    }
-    if ($prevManagedModel) {
-        $actualModel = [string](Get-Prop $settings 'model')
-        if ($actualModel -cne $prevModelValue) {
-            $driftKeys.Add('model')
-            $driftActual['model'] = $actualModel
+        if ($prevManagedModel) {
+            $actualModel = [string](Get-Prop $recordDoc 'model')
+            if ($actualModel -cne $prevModelValue) {
+                $driftKeys.Add('model')
+                $driftActual['model'] = $actualModel
+            }
         }
-    }
-    if ($prevManagedHelper) {
-        $actualHelper = [string](Get-Prop $settings 'apiKeyHelper')
-        if ($actualHelper -cne $prevHelperValue) {
-            $driftKeys.Add('apiKeyHelper')
-            $helperDrifted = $true
+        if ($prevManagedHelper) {
+            $actualHelper = [string](Get-Prop $recordDoc 'apiKeyHelper')
+            if ($actualHelper -cne $prevHelperValue) {
+                $driftKeys.Add('apiKeyHelper')
+                $helperDrifted = $true
+            }
         }
     }
 
@@ -253,11 +294,23 @@ function Invoke-Apply {
     }
 
     # ---- Step 7: remove all previously managed keys from settings ----
+    # From the new target too, even when the record lived in the legacy
+    # file: a manual migration may have copied plugin keys there already.
     if ($null -ne $settingsEnv) {
         foreach ($key in $prevKeys) { Remove-Prop $settingsEnv $key }
     }
     if ($prevManagedModel) { Remove-Prop $settings 'model' }
     if ($prevManagedHelper) { Remove-Prop $settings 'apiKeyHelper' }
+    if ($migrating -and $legacyExists) {
+        if ($null -ne $recordEnv) {
+            foreach ($key in $prevKeys) { Remove-Prop $recordEnv $key }
+        }
+        if ($prevManagedModel) { Remove-Prop $recordDoc 'model' }
+        if ($prevManagedHelper) { Remove-Prop $recordDoc 'apiKeyHelper' }
+        if ($null -ne $recordEnv -and @($recordEnv.PSObject.Properties).Count -eq 0) {
+            Remove-Prop $recordDoc 'env'
+        }
+    }
 
     # ---- Step 8: incorporate drifted values the new profile does NOT
     # manage - they survive as unmanaged user edits ----
@@ -329,6 +382,20 @@ function Invoke-Apply {
     $settingsDir = Split-Path -Parent $settingsPath
     $null = New-Item -ItemType Directory -Path $settingsDir -Force
     Write-AtomicFile -Path $settingsPath -Content (($settings | ConvertTo-Json -Depth 10) + "`n")
+
+    # ---- Step 10b: migration tail - clean the legacy file ----
+    # Managed keys were removed from $recordDoc in Step 7. Write what is
+    # left back (preserving the user's other content, e.g. permissions),
+    # or delete the file if nothing remains. Crash-safe: if this never
+    # runs, doctor flags the leftovers.
+    if ($migrating -and $legacyExists) {
+        if (@($recordDoc.PSObject.Properties).Count -eq 0) {
+            Remove-Item -LiteralPath $recordPath -Force -ErrorAction SilentlyContinue
+        } else {
+            Write-AtomicFile -Path $recordPath -Content (($recordDoc | ConvertTo-Json -Depth 10) + "`n")
+        }
+        [Console]::Error.WriteLine("provider: migrated managed keys from the legacy location ($recordPath) to $settingsPath.")
+    }
 
     # ---- Step 11: post-apply stale-env check ----
     if ($env:CLAUDE_PROVIDER_ACTIVE -cne $Name) {

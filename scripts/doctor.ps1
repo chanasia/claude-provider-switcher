@@ -10,12 +10,16 @@
 #   3. the active profile still exists
 #   4. rendered shims exist and match the active profile's auth
 #   5. the auth reference resolves (credential present / env var set)
-#   6. settings.local.json parses, and managed keys match the sidecar (drift)
+#   6. the settings file the sidecar targets parses, and managed keys
+#      match the sidecar (drift); warns when that file is the legacy
+#      pre-0.1.9 location (settings.local.json, only read from home)
 #   7. apiKeyHelper points at a file that exists
 #   8. no orphaned shims or stale temp files
-#   9. no secret material recorded in settings.local.json permissions
-#      (approved command lines are stored verbatim there - a -Secret
-#      argument means a token leaked into a plain-text file)
+#   9. no secret material recorded in settings permissions, current or
+#      legacy file (approved command lines are stored verbatim there -
+#      a -Secret argument means a token leaked into a plain-text file)
+#  10. no plugin-managed keys left behind in the legacy file after
+#      migration
 #
 # -Fix repairs what is safely repairable: recreates a missing sidecar,
 # re-renders missing/mismatched shims, removes orphans, deletes permission
@@ -170,20 +174,31 @@ if ($null -ne $activeDoc) {
     }
 }
 
-# ---- 6-7. settings.local.json: parses, matches sidecar, helper exists ----
+# ---- 6-7. settings: parses, matches sidecar, helper exists ----
+# The sidecar records which file holds its managed keys (target_file).
+# Pre-0.1.9 sidecars point at the legacy settings.local.json.
 $settingsPath = Get-SettingsPath
-if (-not (Test-Path -LiteralPath $settingsPath)) {
+$legacyPath = Get-LegacySettingsPath
+$recordPath = $settingsPath
+if ($null -ne $scope) {
+    $tf = [string](Get-Prop $scope 'target_file')
+    if ($tf -ne '') { $recordPath = $tf } else { $recordPath = $legacyPath }
+}
+if ($recordPath -ne $settingsPath -and $active -ne '') {
+    Add-Finding 'warn' 'legacy' "managed keys live in the pre-0.1.9 location ($recordPath), which Claude Code only reads when started from your HOME directory - run /provider:switch $active to migrate them to settings.json"
+}
+if (-not (Test-Path -LiteralPath $recordPath)) {
     if ($active -ne '') {
-        Add-Finding 'error' 'settings' "sidecar says '$active' is active but $settingsPath does not exist (re-run /provider:switch $active)"
+        Add-Finding 'error' 'settings' "sidecar says '$active' is active but $recordPath does not exist (re-run /provider:switch $active)"
     } else {
-        Add-Finding 'ok' 'settings' 'no settings.local.json yet (nothing has been switched)'
+        Add-Finding 'ok' 'settings' 'no managed settings written yet (nothing has been switched)'
     }
 } else {
     $settings = $null
     try {
-        $settings = Read-JsonFile -Path $settingsPath
+        $settings = Read-JsonFile -Path $recordPath
     } catch {
-        Add-Finding 'error' 'settings' "settings.local.json is not valid JSON: $settingsPath (fix by hand - the plugin will not overwrite it)"
+        Add-Finding 'error' 'settings' "settings file is not valid JSON: $recordPath (fix by hand - the plugin will not overwrite it)"
     }
 
     if ($null -ne $settings -and $null -ne $scope -and -not $sidecarBroken) {
@@ -206,48 +221,89 @@ if (-not (Test-Path -LiteralPath $settingsPath)) {
         if ($drift.Count -gt 0) {
             Add-Finding 'warn' 'drift' "plugin-managed keys were hand-edited since the last switch: $($drift -join ', ') (resolve with /provider:switch $active)"
         } else {
-            Add-Finding 'ok' 'drift' 'settings.local.json matches the sidecar record'
+            Add-Finding 'ok' 'drift' 'settings file matches the sidecar record'
         }
 
         if ($helperValue -ne '' -and -not (Test-Path -LiteralPath $helperValue)) {
             Add-Finding 'error' 'settings' "apiKeyHelper points at a file that does not exist: $helperValue"
         }
     }
+}
 
-    # ---- 9. secrets recorded in permissions ----
-    # Claude Code stores approved command lines verbatim under
-    # permissions.allow. A '-Secret <value>' argument in one of them means
-    # a token was written into this plain-text file. Match on the flag,
-    # never echo the entry itself (it contains the secret).
-    if ($null -ne $settings) {
-        $perms = Get-Prop $settings 'permissions'
-        $leakLists = @()
-        foreach ($listName in @('allow', 'ask', 'deny')) {
-            $entries = Get-Prop $perms $listName
-            if ($null -eq $entries) { continue }
-            $kept = New-Object System.Collections.Generic.List[string]
-            $dropped = 0
-            foreach ($entry in @($entries)) {
-                if ([string]$entry -match '(?i)[-/]secret[\s:="]') { $dropped++ }
-                else { $kept.Add([string]$entry) }
+# ---- 9. secrets recorded in permissions (current AND legacy file) ----
+# Claude Code stores approved command lines verbatim under
+# permissions.allow. A '-Secret <value>' argument in one of them means
+# a token was written into a plain-text file. Match on the flag, never
+# echo the entry itself (it contains the secret).
+foreach ($permPath in @($settingsPath, $legacyPath)) {
+    if (-not (Test-Path -LiteralPath $permPath)) { continue }
+    $permDoc = $null
+    try { $permDoc = Read-JsonFile -Path $permPath } catch { $permDoc = $null }
+    if ($null -eq $permDoc) { continue }
+    $perms = Get-Prop $permDoc 'permissions'
+    $leakLists = @()
+    foreach ($listName in @('allow', 'ask', 'deny')) {
+        $entries = Get-Prop $perms $listName
+        if ($null -eq $entries) { continue }
+        $kept = New-Object System.Collections.Generic.List[string]
+        $dropped = 0
+        foreach ($entry in @($entries)) {
+            if ([string]$entry -match '(?i)[-/]secret[\s:="]') { $dropped++ }
+            else { $kept.Add([string]$entry) }
+        }
+        if ($dropped -gt 0) {
+            $leakLists += ,@($listName, $dropped, $kept)
+        }
+    }
+    if ($leakLists.Count -gt 0) {
+        if ($Fix) {
+            foreach ($leak in $leakLists) {
+                $perms.PSObject.Properties[$leak[0]].Value = $leak[2].ToArray()
             }
-            if ($dropped -gt 0) {
-                $leakLists += ,@($listName, $dropped, $kept)
+            Write-AtomicFile -Path $permPath -Content (($permDoc | ConvertTo-Json -Depth 10) + "`n")
+            foreach ($leak in $leakLists) {
+                Add-Finding 'error' 'secret' "$(Split-Path -Leaf $permPath): permissions.$($leak[0]) contained $($leak[1]) entr$(if ($leak[1] -eq 1) { 'y' } else { 'ies' }) embedding a secret on a command line" 'removed'
+            }
+        } else {
+            foreach ($leak in $leakLists) {
+                Add-Finding 'error' 'secret' "$(Split-Path -Leaf $permPath): permissions.$($leak[0]) has $($leak[1]) entr$(if ($leak[1] -eq 1) { 'y' } else { 'ies' }) embedding a secret on a command line (run with --fix to remove)"
             }
         }
-        if ($leakLists.Count -gt 0) {
+    }
+}
+
+# ---- 10. plugin keys left behind in the legacy file ----
+# After migration (or a crash between the two writes) the legacy
+# settings.local.json must not still carry plugin keys: Claude Code reads
+# it as HOME's project-local settings and would pin sessions started from
+# the home directory to a stale provider.
+if ($recordPath -ne $legacyPath -and (Test-Path -LiteralPath $legacyPath)) {
+    $legacyDoc = $null
+    try { $legacyDoc = Read-JsonFile -Path $legacyPath } catch { $legacyDoc = $null }
+    if ($null -ne $legacyDoc) {
+        $legacyEnv = Get-Prop $legacyDoc 'env'
+        $leftover = New-Object System.Collections.Generic.List[string]
+        foreach ($key in @('CLAUDE_PROVIDER_ACTIVE', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_API_KEY_HELPER_TTL_MS')) {
+            if ($null -ne (Get-Prop $legacyEnv $key)) { $leftover.Add("env.$key") }
+        }
+        $legacyHelper = [string](Get-Prop $legacyDoc 'apiKeyHelper')
+        $helperIsOurs = ($legacyHelper -ne '' -and $legacyHelper.StartsWith((Get-ProfileDir), [System.StringComparison]::OrdinalIgnoreCase))
+        if ($helperIsOurs) { $leftover.Add('apiKeyHelper') }
+        if ($leftover.Count -gt 0) {
             if ($Fix) {
-                foreach ($leak in $leakLists) {
-                    $perms.PSObject.Properties[$leak[0]].Value = $leak[2].ToArray()
+                foreach ($key in @('CLAUDE_PROVIDER_ACTIVE', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_API_KEY_HELPER_TTL_MS')) {
+                    if ($null -ne $legacyEnv -and $null -ne $legacyEnv.PSObject.Properties[$key]) { $legacyEnv.PSObject.Properties.Remove($key) }
                 }
-                Write-AtomicFile -Path $settingsPath -Content (($settings | ConvertTo-Json -Depth 10) + "`n")
-                foreach ($leak in $leakLists) {
-                    Add-Finding 'error' 'secret' "permissions.$($leak[0]) contained $($leak[1]) entr$(if ($leak[1] -eq 1) { 'y' } else { 'ies' }) embedding a secret on a command line" 'removed'
+                if ($helperIsOurs) { $legacyDoc.PSObject.Properties.Remove('apiKeyHelper') }
+                if ($null -ne $legacyEnv -and @($legacyEnv.PSObject.Properties).Count -eq 0) { $legacyDoc.PSObject.Properties.Remove('env') }
+                if (@($legacyDoc.PSObject.Properties).Count -eq 0) {
+                    Remove-Item -LiteralPath $legacyPath -Force -ErrorAction SilentlyContinue
+                } else {
+                    Write-AtomicFile -Path $legacyPath -Content (($legacyDoc | ConvertTo-Json -Depth 10) + "`n")
                 }
+                Add-Finding 'warn' 'legacy' "plugin keys left behind in the pre-0.1.9 location: $($leftover -join ', ')" 'removed'
             } else {
-                foreach ($leak in $leakLists) {
-                    Add-Finding 'error' 'secret' "permissions.$($leak[0]) has $($leak[1]) entr$(if ($leak[1] -eq 1) { 'y' } else { 'ies' }) embedding a secret on a command line (run with --fix to remove)"
-                }
+                Add-Finding 'warn' 'legacy' "plugin keys left behind in the pre-0.1.9 location ($legacyPath): $($leftover -join ', ') (run with --fix to remove)"
             }
         }
     }

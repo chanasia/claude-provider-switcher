@@ -66,7 +66,7 @@ Switching **models within the same provider** needs no restart at all — use Cl
 - **Extras denylist** — env vars that could alter process semantics (`PATH`, `NODE_OPTIONS`, `LD_*`, `PYTHONPATH`, `SSL_CERT_*`, …) are rejected at validate-time *and* apply-time.
 - **Drift detection** — if a plugin-managed key was hand-edited since the last switch, the switch stops and asks before overwriting.
 - **Atomic writes** — settings, sidecar, profile, and shim writes follow a same-directory temp-then-rename protocol under an advisory lock.
-- Plugin writes only to `settings.local.json`, never `settings.json`.
+- Plugin writes only the keys it manages to the **user-scope** `~/.claude/settings.json` (so profiles apply in every project directory); it never touches any project's `.claude/settings*.json`.
 
 See [`docs/design.md`](./docs/design.md) for the full invariant list and threat model.
 
@@ -141,7 +141,7 @@ Install it right after `/provider:init`.
 Claude Code reads provider environment variables at process startup. Exit and relaunch. Exit code 9 from `switch` is the plugin saying exactly this. `/provider:current` will show `STALE` until you do.
 
 **`/provider:switch` reports drift.**
-Something other than the plugin edited a plugin-managed key in `settings.local.json` since the last switch. The command offers three resolutions: overwrite with the new profile's values, incorporate the hand-edits where the new profile doesn't manage them, or cancel. A drifted `apiKeyHelper` can only be overwritten or cancelled, never silently incorporated.
+Something other than the plugin edited a plugin-managed key in `~/.claude/settings.json` since the last switch. The command offers three resolutions: overwrite with the new profile's values, incorporate the hand-edits where the new profile doesn't manage them, or cancel. A drifted `apiKeyHelper` can only be overwritten or cancelled, never silently incorporated.
 
 **"No credential stored in Windows Credential Manager."**
 The profile references a target that has no credential. Store one without putting it on a command line — run in a PowerShell window and it prompts with the input hidden:

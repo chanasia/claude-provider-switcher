@@ -27,7 +27,7 @@ After any terminal outcome, end the command. Never append "next step" menus or u
 
 ### Drift Confirm Flow (exit 8)
 
-Exit 8 means keys the plugin manages in `settings.local.json` were changed by something other than this plugin since the last switch. The script has already printed which keys on stderr. Relay that list, then use `AskUserQuestion` with exactly these options:
+Exit 8 means keys the plugin manages in `~/.claude/settings.json` were changed by something other than this plugin since the last switch. The script has already printed which keys on stderr. Relay that list, then use `AskUserQuestion` with exactly these options:
 
 1. **Overwrite** - re-invoke with `-AcceptDrift overwrite`. The new profile's values win everywhere; the hand-edits are discarded.
 2. **Incorporate** - re-invoke with `-AcceptDrift incorporate`. Hand-edited keys that the new profile does not manage are preserved as unmanaged settings; everything else takes the new profile's values. A drifted `apiKeyHelper` can never be incorporated - if that is what drifted, the script will exit 8 again saying so, and only Overwrite or Cancel apply.

@@ -17,7 +17,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/s
 
 The script prints two lines that can disagree:
 
-- **active profile (on disk)** - what the last `/provider:switch` wrote to `settings.local.json`.
+- **active profile (on disk)** - what the last `/provider:switch` wrote to `~/.claude/settings.json`.
 - **session marker (env)** - what this Claude Code process actually started with.
 
 When `status` reads `STALE`, the switch has been written but this process is still running on the old provider. Tell the user plainly: they must exit Claude Code and start it again. Do not attempt to restart it yourself, and do not describe the new profile as if it were already in use.

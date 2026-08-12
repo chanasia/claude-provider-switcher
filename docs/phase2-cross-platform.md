@@ -141,7 +141,7 @@ Hard-won, all verified by tests or CI history. Ignore at your own risk:
   gateways reject x-api-key, no amount of porting matters. Investigate
   before or alongside Phase 2; it may force an `auth.style` field
   (and note: `ANTHROPIC_AUTH_TOKEN` is denylisted in extras on purpose —
-  a Bearer token in `settings.local.json` would violate invariant 1, so
+  a Bearer token in the settings file would violate invariant 1, so
   the solution must go through a helper, not through env).
 
 ## Suggested order

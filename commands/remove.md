@@ -26,4 +26,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/s
 - **1** - runtime error. Show stderr.
 - **2** - usage error. Show stderr.
 - **3** - profile not found. List the available profiles.
-- **5** - the profile is currently active and was not removed. Tell the user to switch to another profile first (`/provider:switch <other>`), then remove this one. Do not offer to force it - there is no force, by design: a live `settings.local.json` must never point at a profile that no longer exists.
+- **5** - the profile is currently active and was not removed. Tell the user to switch to another profile first (`/provider:switch <other>`), then remove this one. Do not offer to force it - there is no force, by design: a live settings file must never point at a profile that no longer exists.
