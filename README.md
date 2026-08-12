@@ -103,6 +103,22 @@ Either way, run `/provider:init` inside the session afterwards, then `/provider:
 
 ## Troubleshooting
 
+**Locked out — switched to a broken provider and Claude can't respond.**
+Slash commands need a working model, so when the provider is broken you fix it from plain PowerShell instead. Every script runs standalone:
+
+```powershell
+$scripts = Split-Path (Get-ChildItem "$env:USERPROFILE\.claude\plugins\cache" -Recurse -Filter apply-profile.ps1 | Select-Object -First 1).FullName
+powershell -NoProfile -ExecutionPolicy Bypass -File "$scripts\init.ps1"                    # if 'anthropic' was never seeded
+powershell -NoProfile -ExecutionPolicy Bypass -File "$scripts\apply-profile.ps1" anthropic
+```
+
+Then restart Claude Code — you're back on Anthropic direct. (Local-clone installs: use `<clone>\scripts` directly.) Before re-trying the broken profile, check that its helper prints a token and run doctor:
+
+```powershell
+& "$env:USERPROFILE\.claude\provider-profiles\.helpers\<name>.cmd"
+powershell -NoProfile -ExecutionPolicy Bypass -File "$scripts\doctor.ps1"
+```
+
 **"I switched but nothing changed."**
 Claude Code reads provider environment variables at process startup. Exit and relaunch. Exit code 9 from `switch` is the plugin saying exactly this. `/provider:current` will show `STALE` until you do.
 
