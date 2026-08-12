@@ -9,9 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 
+- **Phase 2: macOS / Linux support** — plan and implementer handoff in
+  [docs/phase2-cross-platform.md](./docs/phase2-cross-platform.md)
 - Project scope (`<repo>/.claude/settings.local.json`) alongside global
 - `/provider:edit` for flag-driven field changes
-- macOS / Linux port of the credential and shim layers
 
 ## [0.1.6]
 
