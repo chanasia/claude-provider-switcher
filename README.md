@@ -144,11 +144,13 @@ Claude Code reads provider environment variables at process startup. Exit and re
 Something other than the plugin edited a plugin-managed key in `settings.local.json` since the last switch. The command offers three resolutions: overwrite with the new profile's values, incorporate the hand-edits where the new profile doesn't manage them, or cancel. A drifted `apiKeyHelper` can only be overwritten or cancelled, never silently incorporated.
 
 **"No credential stored in Windows Credential Manager."**
-The profile references a target that has no credential. Store one without putting it on a command line:
+The profile references a target that has no credential. Store one without putting it on a command line — run in a PowerShell window and it prompts with the input hidden:
 
 ```powershell
-Get-Content token.txt | powershell -NoProfile -File scripts\set-credential.ps1 -Target "claude-provider/work-gateway"
+powershell -NoProfile -File scripts\set-credential.ps1 -Target "claude-provider/work-gateway"
 ```
+
+(Or pipe it: `Get-Content token.txt | powershell -NoProfile -File scripts\set-credential.ps1 -Target ...`.) Never pass the token as a `-Secret` argument from inside a Claude Code session: approved command lines are recorded verbatim in `settings.local.json`, which would write the token to a plain-text file. `/provider:doctor` flags that and `--fix` cleans it up.
 
 **Running the scripts directly.**
 Every script is standalone and takes `-Json` or `-Fix` where relevant. `CLAUDE_PROVIDER_HOME` overrides `$HOME`, which is how the test suite stays out of your real `~/.claude`.

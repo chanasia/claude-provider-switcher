@@ -13,10 +13,15 @@
 #   6. settings.local.json parses, and managed keys match the sidecar (drift)
 #   7. apiKeyHelper points at a file that exists
 #   8. no orphaned shims or stale temp files
+#   9. no secret material recorded in settings.local.json permissions
+#      (approved command lines are stored verbatim there - a -Secret
+#      argument means a token leaked into a plain-text file)
 #
 # -Fix repairs what is safely repairable: recreates a missing sidecar,
-# re-renders missing/mismatched shims, removes orphans. It never resolves
-# drift (that is /provider:switch's job, with user confirmation).
+# re-renders missing/mismatched shims, removes orphans, deletes permission
+# entries that embed a secret (worst case the user is re-prompted for
+# approval). It never resolves drift (that is /provider:switch's job,
+# with user confirmation).
 #
 # Exit codes: 0 all clear | 1 problems found
 
@@ -206,6 +211,44 @@ if (-not (Test-Path -LiteralPath $settingsPath)) {
 
         if ($helperValue -ne '' -and -not (Test-Path -LiteralPath $helperValue)) {
             Add-Finding 'error' 'settings' "apiKeyHelper points at a file that does not exist: $helperValue"
+        }
+    }
+
+    # ---- 9. secrets recorded in permissions ----
+    # Claude Code stores approved command lines verbatim under
+    # permissions.allow. A '-Secret <value>' argument in one of them means
+    # a token was written into this plain-text file. Match on the flag,
+    # never echo the entry itself (it contains the secret).
+    if ($null -ne $settings) {
+        $perms = Get-Prop $settings 'permissions'
+        $leakLists = @()
+        foreach ($listName in @('allow', 'ask', 'deny')) {
+            $entries = Get-Prop $perms $listName
+            if ($null -eq $entries) { continue }
+            $kept = New-Object System.Collections.Generic.List[string]
+            $dropped = 0
+            foreach ($entry in @($entries)) {
+                if ([string]$entry -match '(?i)[-/]secret[\s:="]') { $dropped++ }
+                else { $kept.Add([string]$entry) }
+            }
+            if ($dropped -gt 0) {
+                $leakLists += ,@($listName, $dropped, $kept)
+            }
+        }
+        if ($leakLists.Count -gt 0) {
+            if ($Fix) {
+                foreach ($leak in $leakLists) {
+                    $perms.PSObject.Properties[$leak[0]].Value = $leak[2].ToArray()
+                }
+                Write-AtomicFile -Path $settingsPath -Content (($settings | ConvertTo-Json -Depth 10) + "`n")
+                foreach ($leak in $leakLists) {
+                    Add-Finding 'error' 'secret' "permissions.$($leak[0]) contained $($leak[1]) entr$(if ($leak[1] -eq 1) { 'y' } else { 'ies' }) embedding a secret on a command line" 'removed - ROTATE that token; it sat in a plain-text file'
+                }
+            } else {
+                foreach ($leak in $leakLists) {
+                    Add-Finding 'error' 'secret' "permissions.$($leak[0]) has $($leak[1]) entr$(if ($leak[1] -eq 1) { 'y' } else { 'ies' }) embedding a secret on a command line (run with --fix to remove, then ROTATE that token)"
+                }
+            }
         }
     }
 }

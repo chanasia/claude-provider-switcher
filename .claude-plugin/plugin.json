@@ -1,6 +1,6 @@
 {
   "name": "provider",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Switch Claude Code between Anthropic direct and custom LLM gateway providers (with per-profile default model) via slash commands. Windows-first, zero secret material stored in plugin files.",
   "author": {
     "name": "chanasia",

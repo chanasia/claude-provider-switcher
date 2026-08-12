@@ -20,17 +20,33 @@ Ask only what you need, and prefer one `AskUserQuestion` call with several quest
 | `ttl_ms` | Optional. Only worth asking about when the gateway issues short-lived tokens; 300000 (5 min) is a reasonable default. Skip otherwise. |
 | `extras` | Optional extra environment variables as `KEY=VALUE`. Do not offer this unprompted. |
 
-For `credman`, also ask for the **token itself**, and pick a target name of the form `claude-provider/<profile-name>` unless the user wants another.
+For `credman`, pick a target name of the form `claude-provider/<profile-name>` unless the user wants another. Do **NOT** ask for the token itself - see Step 2.
 
 For `env_var`, ask for the variable name (uppercase, `^[A-Z_][A-Z0-9_]*$`). Do not ask for the token - it is already in the environment.
 
-### Step 2 - store the token first (credman only)
+### Step 2 - have the USER store the token (credman only)
+
+The token must never enter this conversation and never appear on a command line you run:
+
+- A chat answer becomes part of the session transcript on disk.
+- An approved command line is recorded **verbatim** in `settings.local.json`'s `permissions.allow` - a `-Secret "<token>"` argument writes the token into a plain-text file, violating the plugin's first invariant.
+
+So do not collect it. Print this command and ask the user to run it themselves in any PowerShell window - it prompts for the token with the input hidden:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/set-credential.ps1" -Target "<target>" -Secret "<token>"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/set-credential.ps1" -Target "<target>"
 ```
 
-Never echo the token back to the user, never write it into any file, and never include it in a summary. If this fails (exit 1), stop and report - do not create a profile whose credential is missing.
+When they say it is done, verify it landed (this checks existence only and never reads the value):
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/set-credential.ps1" -Target "<target>" -Test
+```
+
+- **exit 0** - stored; continue to Step 3.
+- **exit 3** - not stored yet. Remind the user once and re-check after they confirm. Do not fall back to asking for the token in chat.
+
+If the user pastes the token into the conversation anyway: do not repeat it, do not put it on any command line, and warn them it is now part of the session transcript - recommend rotating it once setup is complete. Then have them run the store command above themselves as normal.
 
 ### Step 3 - create the profile
 

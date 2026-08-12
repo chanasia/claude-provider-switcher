@@ -49,10 +49,10 @@ There is no decision to make here, so do NOT use `AskUserQuestion`. Never attemp
 
 ### Storing a credential (exit 1, credman auth)
 
-When the failure is a missing Credential Manager entry, the token must be stored before the switch can succeed. Ask the user to paste the token, then store it without echoing it back:
+When the failure is a missing Credential Manager entry, the token must be stored before the switch can succeed. Do **NOT** ask the user to paste the token into the chat, and never place it on a command line you run - approved command lines are recorded verbatim in `settings.local.json`'s permissions, which would write the token to a plain-text file. Instead, print this command and ask the user to run it themselves in any PowerShell window (it prompts with the input hidden):
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/set-credential.ps1" -Target "<target>" -Secret "<token>"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/set-credential.ps1" -Target "<target>"
 ```
 
-Never write the token into a profile file, a settings file, or any file in the repository. After storing it, re-run the switch.
+When they say it is done, verify with `-Test` appended (existence check only, exit 0 = stored), then re-run the switch.

@@ -208,6 +208,58 @@ Describe 'remove-profile.ps1' {
     }
 }
 
+Describe 'set-credential.ps1' {
+
+    It 'round-trips a secret passed via stdin' {
+        $target = "claude-provider-switcher/setcred-stdin-$PID"
+        try {
+            $prev = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                $null = 'sk-stdin-value' | & powershell.exe -NoProfile -ExecutionPolicy Bypass `
+                    -File (Join-Path $script:ScriptsDir 'set-credential.ps1') -Target $target 2>&1
+                $code = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $prev
+            }
+            $code | Should Be 0
+            Get-StoredCredential -Target $target | Should Be 'sk-stdin-value'
+        } finally {
+            $null = Remove-StoredCredential -Target $target
+        }
+    }
+
+    It 'exits 2 when stdin is empty and no -Secret was given' {
+        $prev = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $null = '' | & powershell.exe -NoProfile -ExecutionPolicy Bypass `
+                -File (Join-Path $script:ScriptsDir 'set-credential.ps1') -Target 'claude-provider-switcher/setcred-empty' 2>&1
+            $code = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $prev
+        }
+        $code | Should Be 2
+    }
+
+    It '-Test exits 0 for a stored credential and never prints the value' {
+        $target = "claude-provider-switcher/setcred-test-$PID"
+        Set-StoredCredential -Target $target -Secret 'sk-hidden-value'
+        try {
+            $r = Invoke-ProviderScript 'set-credential.ps1' @('-Target', $target, '-Test')
+            $r.Exit | Should Be 0
+            $r.Output | Should Not Match 'sk-hidden-value'
+        } finally {
+            $null = Remove-StoredCredential -Target $target
+        }
+    }
+
+    It '-Test exits 3 when nothing is stored under the target' {
+        $r = Invoke-ProviderScript 'set-credential.ps1' @('-Target', 'claude-provider-switcher/setcred-absent', '-Test')
+        $r.Exit | Should Be 3
+    }
+}
+
 Describe 'doctor.ps1' {
 
     It 'exits 1 when the profile dir is missing' {
@@ -288,6 +340,53 @@ Describe 'doctor.ps1' {
 
         $null = Invoke-ProviderScript 'doctor.ps1' @('-Fix')
         Test-Path (Join-Path $helpers 'ghost.cmd') | Should Be $false
+    }
+
+    It 'flags a permissions entry embedding a secret without echoing it' {
+        $h = New-TestHome $TestDrive 'dr-secretperm'
+        $null = Write-TestProfile $h 'anthropic' '{"name":"anthropic","auth":{"type":"none"}}'
+        (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
+
+        $sPath = Join-Path $h '.claude\settings.local.json'
+        $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
+        $leaked = 'Bash(powershell.exe -File set-credential.ps1 -Target "t" -Secret "sk-leaked-token-value")'
+        $s | Add-Member -NotePropertyName permissions -NotePropertyValue ([PSCustomObject]@{
+            allow = @($leaked, 'Bash(echo ok)')
+        })
+        [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))
+
+        $r = Invoke-ProviderScript 'doctor.ps1'
+        $r.Exit | Should Be 1
+        $r.Output | Should Match 'embedding a secret'
+        $r.Output | Should Not Match 'sk-leaked-token-value'
+    }
+
+    It 'removes only the secret-embedding permission entries with -Fix' {
+        $h = New-TestHome $TestDrive 'dr-secretfix'
+        $null = Write-TestProfile $h 'anthropic' '{"name":"anthropic","auth":{"type":"none"}}'
+        (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
+
+        $sPath = Join-Path $h '.claude\settings.local.json'
+        $s = [System.IO.File]::ReadAllText($sPath) | ConvertFrom-Json
+        $s | Add-Member -NotePropertyName permissions -NotePropertyValue ([PSCustomObject]@{
+            allow = @(
+                'Bash(powershell.exe -File set-credential.ps1 -Target "t" -Secret "sk-leaked-token-value")',
+                'Bash(echo ok)'
+            )
+        })
+        [System.IO.File]::WriteAllText($sPath, ($s | ConvertTo-Json -Depth 10))
+
+        $r = Invoke-ProviderScript 'doctor.ps1' @('-Fix')
+        $r.Output | Should Match 'ROTATE'
+        $r.Output | Should Not Match 'sk-leaked-token-value'
+
+        $after = [System.IO.File]::ReadAllText($sPath)
+        $after | Should Not Match 'sk-leaked-token-value'
+        $after | Should Match 'Bash\(echo ok\)'
+        # managed keys survive the rewrite
+        ($after | ConvertFrom-Json).env.CLAUDE_PROVIDER_ACTIVE | Should Be 'anthropic'
+
+        (Invoke-ProviderScript 'doctor.ps1').Exit | Should Be 0
     }
 
     It 'clears a stale lock with -Fix' {

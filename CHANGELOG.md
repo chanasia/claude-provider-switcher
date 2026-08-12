@@ -14,6 +14,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project scope (`<repo>/.claude/settings.local.json`) alongside global
 - `/provider:edit` for flag-driven field changes
 
+## [0.1.7]
+
+### Security
+
+- **The `/provider:add` and `/provider:switch` flows no longer pass the
+  token on a command line or ask for it in chat.** Claude Code records
+  approved command lines verbatim in `settings.local.json`'s
+  `permissions.allow`, so the previous `-Secret "<token>"` invocation
+  wrote the token into a plain-text file (found in real use, violating
+  invariant 1). The user now runs `set-credential.ps1 -Target <target>`
+  themselves; it prompts for the token with input hidden.
+- `set-credential.ps1`: interactive hidden prompt when run in a console
+  without piped stdin; new `-Test` switch for an existence-only check
+  (exit 0 stored / exit 3 not stored) so the wizard can verify without
+  ever touching the value.
+- `doctor` check 9: flags permission entries embedding a secret
+  (`-Secret`-style command lines) without echoing them; `-Fix` removes
+  the entries and tells you to rotate the token.
+
+**If you used `/provider:add` with a `credman` profile on v0.1.6 or
+earlier: your token is sitting in `~/.claude/settings.local.json`.** Run
+`/provider:doctor --fix` after updating, then rotate the token with your
+gateway.
+
 ## [0.1.6]
 
 ### Changed
