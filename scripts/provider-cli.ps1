@@ -1,21 +1,20 @@
 # provider-cli.ps1 <command> [args...]
 #
-# Offline command-line entry point. Slash commands need a working model to
-# interpret them; this dispatcher needs nothing but PowerShell, so it works
-# with a broken provider or no network at all. install-cli.ps1 copies it to
-# ~\.claude\bin\provider.ps1 with a provider.cmd wrapper on PATH.
+# The offline emergency CLI, installed as `claude-provider` by
+# install-cli.ps1. Slash commands need a working model to interpret them;
+# this needs nothing but PowerShell - no model, no network.
 #
-# Commands map 1:1 onto the standalone scripts; all remaining arguments are
-# passed through untouched:
-#   provider init
-#   provider list [-Json]
-#   provider current [-Json]
-#   provider switch <name> [-AcceptDrift overwrite|incorporate]
-#   provider create -Name <n> -AuthType <t> [...]
-#   provider remove <name> [-DeleteCredential]
-#   provider doctor [-Fix] [-Json]
-#   provider set-credential -Target <t> [-Secret <s>]
-#   provider validate <path>
+# Deliberately minimal - exactly two commands (day-to-day management
+# belongs to the /provider:* slash commands):
+#
+#   claude-provider anthropic      switch this machine back to Anthropic
+#                                  direct, self-healing: seeds the profile
+#                                  if missing, repairs a broken sidecar,
+#                                  overwrites drift (emergency semantics)
+#   claude-provider reset [-Force] remove ALL plugin state (managed
+#                                  settings keys, profiles, credentials,
+#                                  this CLI) - the plugin itself stays
+#                                  installed in Claude Code
 #
 # Script resolution order:
 #   1. CLAUDE_PROVIDER_SCRIPTS env var (local clones, tests)
@@ -25,38 +24,22 @@
 
 $ErrorActionPreference = 'Stop'
 
-$commandMap = @{
-    'init'           = 'init.ps1'
-    'list'           = 'list-profiles.ps1'
-    'current'        = 'get-active.ps1'
-    'switch'         = 'apply-profile.ps1'
-    'create'         = 'create-profile.ps1'
-    'remove'         = 'remove-profile.ps1'
-    'doctor'         = 'doctor.ps1'
-    'set-credential' = 'set-credential.ps1'
-    'validate'       = 'validate-profile.ps1'
-}
-
 $cmd = ''
 if ($args.Count -gt 0) { $cmd = [string]$args[0] }
 $rest = @()
 if ($args.Count -gt 1) { $rest = @($args[1..($args.Count - 1)] | ForEach-Object { [string]$_ }) }
 
-if ($cmd -eq '' -or -not $commandMap.ContainsKey($cmd)) {
-    [Console]::Error.WriteLine('usage: provider <command> [args...]')
+if ($cmd -cne 'anthropic' -and $cmd -cne 'reset') {
+    [Console]::Error.WriteLine('usage: claude-provider <command>')
     [Console]::Error.WriteLine('')
-    [Console]::Error.WriteLine('  init                          first-time setup, seed example profiles')
-    [Console]::Error.WriteLine('  list [-Json]                  list profiles, mark the active one')
-    [Console]::Error.WriteLine('  current [-Json]               effective profile for this machine')
-    [Console]::Error.WriteLine('  switch <name>                 activate a profile (then restart Claude Code)')
-    [Console]::Error.WriteLine('  create -Name <n> -AuthType <t> [...]   non-interactive profile creation')
-    [Console]::Error.WriteLine('  remove <name> [-DeleteCredential]')
-    [Console]::Error.WriteLine('  doctor [-Fix] [-Json]         diagnose / repair')
-    [Console]::Error.WriteLine('  set-credential -Target <t>    store a token (reads stdin if no -Secret)')
-    [Console]::Error.WriteLine('  validate <path>               validate a profile file')
+    [Console]::Error.WriteLine('  anthropic        switch this machine back to Anthropic direct')
+    [Console]::Error.WriteLine('                   (then restart Claude Code)')
+    [Console]::Error.WriteLine('  reset [-Force]   remove all plugin state: managed settings keys,')
+    [Console]::Error.WriteLine('                   profiles, stored credentials, and this CLI.')
+    [Console]::Error.WriteLine('                   The plugin stays installed in Claude Code.')
     [Console]::Error.WriteLine('')
-    [Console]::Error.WriteLine('Works offline - no model or network needed. Escape hatch:')
-    [Console]::Error.WriteLine('  provider switch anthropic')
+    [Console]::Error.WriteLine('Emergency tool - works with no model and no network.')
+    [Console]::Error.WriteLine('Everything else is a /provider:* slash command inside Claude Code.')
     exit 2
 }
 
@@ -71,7 +54,6 @@ if ($env:CLAUDE_PROVIDER_SCRIPTS -and (Test-Path (Join-Path $env:CLAUDE_PROVIDER
         $bestVer = $null
         foreach ($hit in (Get-ChildItem -LiteralPath $cache -Recurse -Filter 'apply-profile.ps1' -ErrorAction SilentlyContinue)) {
             $dir = Split-Path $hit.FullName -Parent
-            # .../<plugin>/<version>/scripts/apply-profile.ps1 -> version folder
             $verName = Split-Path (Split-Path $dir -Parent) -Leaf
             $ver = $null
             if (-not [Version]::TryParse($verName, [ref]$ver)) { $ver = [Version]'0.0.0' }
@@ -88,8 +70,41 @@ if ($null -eq $scriptsDir) {
     exit 1
 }
 
-# Child powershell -File parses '-Fix' / '-Json' style args into real
-# parameters; in-process array splatting would bind them positionally.
-& powershell.exe -NoProfile -ExecutionPolicy Bypass `
-    -File (Join-Path $scriptsDir $commandMap[$cmd]) @rest
-exit $LASTEXITCODE
+function Invoke-Step {
+    # Child powershell -File parses switch-style args into real parameters;
+    # in-process array splatting would bind them positionally. The child's
+    # stdout flows straight through (never capture this function's output -
+    # the exit code travels via $script:StepCode instead).
+    param([string]$ScriptName, [string[]]$StepArgs = @())
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass `
+        -File (Join-Path $scriptsDir $ScriptName) @StepArgs
+    $script:StepCode = $LASTEXITCODE
+}
+
+if ($cmd -ceq 'reset') {
+    Invoke-Step 'reset.ps1' $rest
+    exit $script:StepCode
+}
+
+# ---- claude-provider anthropic: self-healing switch-back ----
+# Seed the anthropic profile if this machine never ran /provider:init
+# (suppress the first-time-setup chatter; only the switch outcome matters).
+Invoke-Step 'init.ps1' | Out-Null
+
+Invoke-Step 'apply-profile.ps1' @('anthropic')
+
+if ($script:StepCode -eq 1) {
+    # Most likely a corrupt sidecar or stale lock - repair and retry once.
+    [Console]::Error.WriteLine('provider: first attempt failed - running doctor -Fix and retrying...')
+    Invoke-Step 'doctor.ps1' @('-Fix')
+    Invoke-Step 'apply-profile.ps1' @('anthropic')
+}
+
+if ($script:StepCode -eq 8) {
+    # Emergency semantics: hand-edits lose; getting back to a working
+    # session wins. Say so instead of asking.
+    [Console]::Error.WriteLine('provider: managed keys were hand-edited since the last switch - overwriting them (emergency mode).')
+    Invoke-Step 'apply-profile.ps1' @('anthropic', '-AcceptDrift', 'overwrite')
+}
+
+exit $script:StepCode

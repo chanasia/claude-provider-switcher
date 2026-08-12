@@ -108,7 +108,7 @@ Either way, run `/provider:init` inside the session afterwards, then `/provider:
 Slash commands need a working model to interpret them, so when the provider is broken you fix it from plain PowerShell instead. If you installed the CLI (`/provider:install-cli` — do it while things still work), it's one line:
 
 ```
-provider switch anthropic
+claude-provider anthropic
 ```
 
 Then restart Claude Code — you're back on Anthropic direct. Without the CLI, every script still runs standalone:
@@ -123,18 +123,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$scripts\apply-profile.ps1"
 
 ```powershell
 & "$env:USERPROFILE\.claude\provider-profiles\.helpers\<name>.cmd"
-provider doctor
+powershell -NoProfile -ExecutionPolicy Bypass -File "$scripts\doctor.ps1"
 ```
 
 ## Offline CLI
 
-`/provider:install-cli` copies a `provider` command to `~\.claude\bin` and puts it on your user Path. It maps 1:1 onto the slash commands but needs **no model and no network** — plain PowerShell only:
+`/provider:install-cli` copies a `claude-provider` command to `~\.claude\bin` and puts it on your user Path. It is deliberately an **emergency tool with exactly two commands** — day-to-day management stays in the slash commands — and needs no model and no network:
 
-```
-provider init | list | current | switch <name> | remove <name> | doctor [-Fix] | set-credential -Target <t> | create ... | validate <path>
-```
+| Command | What it does |
+|---|---|
+| `claude-provider anthropic` | Back to Anthropic direct, self-healing: seeds the profile if missing, repairs a corrupt sidecar, overwrites drift. Restart Claude Code afterwards. |
+| `claude-provider reset [-Force]` | Remove **all** plugin state — managed settings keys, every profile, the sidecar and shims, referenced Credential Manager entries, and the CLI itself. The plugin stays installed in Claude Code; `/provider:init` starts fresh. |
 
-Same scripts, same sidecar, same drift rules — just a different door into them. Install it right after `/provider:init`.
+Install it right after `/provider:init`.
 
 **"I switched but nothing changed."**
 Claude Code reads provider environment variables at process startup. Exit and relaunch. Exit code 9 from `switch` is the plugin saying exactly this. `/provider:current` will show `STALE` until you do.

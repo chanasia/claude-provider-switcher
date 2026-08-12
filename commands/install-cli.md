@@ -15,12 +15,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/s
 
 ### Why this exists
 
-Slash commands are interpreted by the model, so if a switch lands on a broken provider, `/provider:switch anthropic` cannot run - the session cannot respond at all. The `provider` CLI runs in plain PowerShell with no model and no network:
+Slash commands are interpreted by the model, so if a switch lands on a broken provider, `/provider:switch anthropic` cannot run - the session cannot respond at all. The `claude-provider` CLI runs in plain PowerShell with no model and no network. It is deliberately an emergency tool with exactly two commands (day-to-day management stays in the slash commands):
 
 ```
-provider switch anthropic
-provider doctor -Fix
-provider list
+claude-provider anthropic        back to Anthropic direct (self-healing; then restart Claude Code)
+claude-provider reset [-Force]   remove all plugin state - profiles, credentials, managed
+                                 settings keys, the CLI itself; the plugin stays installed
 ```
 
 Recommend installing it right after `/provider:init`, while everything still works.

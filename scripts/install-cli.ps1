@@ -1,14 +1,14 @@
 # install-cli.ps1
 #
-# Installs the offline `provider` CLI: copies provider-cli.ps1 to
-# ~\.claude\bin\provider.ps1, writes a provider.cmd wrapper next to it,
-# and adds that directory to the USER Path if it is not already there.
+# Installs the offline `claude-provider` CLI: copies provider-cli.ps1 to
+# ~\.claude\bin\claude-provider.ps1, writes a claude-provider.cmd wrapper
+# next to it, and adds that directory to the USER Path if needed.
 #
 # Install this while your provider still works - it is the escape hatch
 # for when a switch lands on a broken provider and slash commands (which
 # need a working model) cannot run:
 #
-#   provider switch anthropic
+#   claude-provider anthropic
 #
 # Exit codes: 0 ok | 1 runtime
 
@@ -25,15 +25,21 @@ try {
     if (-not (Test-Path -LiteralPath $source)) {
         throw "provider-cli.ps1 not found next to this script: $source"
     }
-    Write-AtomicFile -Path (Join-Path $binDir 'provider.ps1') `
+    Write-AtomicFile -Path (Join-Path $binDir 'claude-provider.ps1') `
         -Content ([System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $source).ProviderPath))
 
-    # cmd wrapper so `provider` works from cmd, PowerShell, and Run boxes.
+    # cmd wrapper so `claude-provider` works from cmd, PowerShell, and Run boxes.
     $cmdBody = "@echo off`r`n" +
         "rem claude-provider-switcher offline CLI - see install-cli.ps1`r`n" +
-        "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0provider.ps1`" %*`r`n" +
+        "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0claude-provider.ps1`" %*`r`n" +
         "exit /b %ERRORLEVEL%`r`n"
-    Write-AtomicFile -Path (Join-Path $binDir 'provider.cmd') -Content $cmdBody
+    Write-AtomicFile -Path (Join-Path $binDir 'claude-provider.cmd') -Content $cmdBody
+
+    # The CLI was named `provider` before v0.1.6 - clean up on upgrade.
+    foreach ($legacy in @('provider.cmd', 'provider.ps1')) {
+        $f = Join-Path $binDir $legacy
+        if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force }
+    }
 
     # USER Path (never machine scope).
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -52,12 +58,12 @@ try {
         Write-Output "already on user Path: $binDir"
     }
 
-    Write-Output "installed: $binDir\provider.cmd"
+    Write-Output "installed: $binDir\claude-provider.cmd"
     Write-Output ''
-    Write-Output 'The `provider` command now works in any terminal, with no model or'
-    Write-Output 'network needed. If a switch ever strands you on a broken provider:'
-    Write-Output '  provider switch anthropic'
-    Write-Output '  (then restart Claude Code)'
+    Write-Output 'The `claude-provider` command works in any terminal, with no model'
+    Write-Output 'or network needed. It has exactly two commands:'
+    Write-Output '  claude-provider anthropic      back to Anthropic direct (then restart Claude Code)'
+    Write-Output '  claude-provider reset [-Force] remove all plugin state'
     exit $EXIT_OK
 } catch {
     [Console]::Error.WriteLine("provider: $($_.Exception.Message)")

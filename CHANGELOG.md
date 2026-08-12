@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/provider:edit` for flag-driven field changes
 - macOS / Linux port of the credential and shim layers
 
+## [0.1.6]
+
+### Changed
+
+- **Offline CLI renamed `provider` -> `claude-provider`** and slimmed to an
+  emergency-only tool with exactly two commands (user feedback - full
+  command parity duplicated the slash commands and invited misuse):
+  - `claude-provider anthropic` - self-healing switch-back: seeds the
+    profile if missing, repairs a corrupt sidecar via doctor -Fix, and
+    overwrites drift instead of stopping to ask.
+  - `claude-provider reset [-Force]` - removes all plugin state (managed
+    settings keys, profiles, sidecar, shims, referenced Credential Manager
+    entries, the CLI itself). The plugin stays installed in Claude Code.
+- install-cli removes the legacy `provider.cmd`/`provider.ps1` on upgrade.
+
 ## [0.1.5]
 
 ### Changed
