@@ -22,3 +22,5 @@ Tell the user what they got and what to do next:
 - Nothing is active yet. `/provider:switch <name>` activates a profile, and Claude Code must be restarted afterwards.
 
 Do not offer to edit the seed profiles by hand unless the user asks - `/provider:add` builds a validated profile and stores the token in Windows Credential Manager, which hand-editing does not.
+
+State the next steps as plain text and end the command. Do not ask follow-up questions or present option menus.

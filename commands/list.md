@@ -19,3 +19,5 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/s
 Profiles contain references only (Credential Manager target names, environment variable names) - never tokens - so the listing is safe to show in full. Do not redact it.
 
 Active-on-disk is not the same as active-in-this-session. If the user asks which provider they are actually talking to right now, run `/provider:current` instead - it compares the two.
+
+After relaying the listing, end the command. Do not ask follow-up questions or offer "next step" menus.

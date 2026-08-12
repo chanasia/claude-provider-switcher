@@ -25,3 +25,5 @@ When `status` reads `STALE`, the switch has been written but this process is sti
 When `status` reads `in effect`, the session is genuinely on that profile.
 
 If the user's real question is "which model am I using?", note that a profile's `model` is only the default for new sessions - `/model <name>` changes the model mid-session without any restart.
+
+After relaying the status, end the command. Do not ask follow-up questions or offer "next step" menus.

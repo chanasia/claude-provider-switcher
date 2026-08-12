@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/provider:edit` for flag-driven field changes
 - macOS / Linux port of the credential and shim layers
 
+## [0.1.2]
+
+### Changed
+
+- Commands now report and END. Removed every source of unsolicited
+  follow-up questions and "next step" menus (user feedback). The only
+  remaining questions are real decisions: drift resolution in `switch`,
+  the delete confirmation in `remove`, and the `add` wizard's fields.
+- Exit 9 (restart required) is a plain one-line statement instead of an
+  acknowledgement prompt - there was never a decision to make there.
+
 ## [0.1.1]
 
 ### Changed

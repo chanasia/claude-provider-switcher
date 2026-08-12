@@ -30,7 +30,11 @@ pure PowerShell.
    print a secret.
 9. **Restart honesty.** Claude Code reads auth env vars at process startup;
    a switch prepares the *next* session. Exit 9 = "written successfully,
-   restart required" and the command layer surfaces it as a structured prompt.
+   restart required" and the command layer states this plainly and stops.
+10. **Minimal interactivity.** Commands report and end. The only questions
+    the command layer may ask are decisions the plugin cannot make: drift
+    resolution (switch), the destructive-delete confirmation (remove), and
+    the add wizard's field collection. Never "next step" menus.
 
 ## 2. On-disk layout (outside the repo)
 
@@ -167,8 +171,8 @@ and rejects any leftover `{{PLACEHOLDER}}`.
 
 The command layer (`commands/*.md`) maps codes to user-facing flows:
 8 → Drift Confirm Flow (AskUserQuestion: Overwrite / Incorporate / Cancel,
-at most one retry), 9 → Restart Ack Flow (structured acknowledge; never
-attempt to restart Claude Code).
+at most one retry), 9 → a plain one-line "restart to activate" statement
+(no prompt; never attempt to restart Claude Code).
 
 ## 8. Platform extension points
 

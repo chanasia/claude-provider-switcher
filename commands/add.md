@@ -48,4 +48,4 @@ Repeat `-Extra KEY=VALUE` once per extra variable.
 
 ### After creating
 
-The new profile is **not** active. Tell the user to run `/provider:switch <name>` and then restart Claude Code.
+The new profile is **not** active. State in plain text that `/provider:switch <name>` (plus a restart) activates it, then end the command. Do not ask whether to switch now, and do not present option menus - the wizard questions in Step 1 are the only questions this command asks.

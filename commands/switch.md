@@ -15,13 +15,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/s
 
 ### Exit codes
 
-- **0** - success and this session's environment already matches. Confirm briefly.
+- **0** - success and this session's environment already matches. Confirm briefly and end.
 - **1** - runtime error: another switch holds the lock, the sidecar is corrupt, the Credential Manager entry is missing, or the referenced environment variable is unset. Show stderr; it names which. For a missing credential, offer to store one (see **Storing a credential** below). Do not retry blindly.
-- **2** - usage error. Show stderr.
-- **3** - profile not found. The script lists available profiles on stderr; relay them and ask which one the user meant.
-- **6** - profile failed schema validation. Show the specific rules that failed.
+- **2** - usage error. Show stderr and end.
+- **3** - profile not found. The script lists available profiles (and hints) on stderr; relay that and END. Do not present an options menu or ask what to do next - the user can type the command again with the name they want.
+- **6** - profile failed schema validation. Show the specific rules that failed and end.
 - **8** - drift detected. Enter the **Drift Confirm Flow** below.
 - **9** - success, but this session is stale. Enter the **Restart Flow** below.
+
+After any terminal outcome, end the command. Never append "next step" menus or unsolicited follow-up questions; the only interactive flow in this command is the Drift Confirm Flow.
 
 ### Drift Confirm Flow (exit 8)
 
@@ -39,12 +41,11 @@ Handle the new exit code as above (normally 9). Do not loop on drift more than o
 
 ### Restart Flow (exit 9)
 
-The profile was written successfully, but Claude Code reads provider environment variables only at process startup, so this session is still on the old provider. Use `AskUserQuestion`:
+The profile was written successfully, but Claude Code reads provider environment variables only at process startup, so this session is still on the old provider. State it in one plain line and end the command:
 
-- **Question:** "Profile switched to '<name>'. Claude Code must be restarted for it to take effect."
-- **Options:** [Acknowledge]
+> Switched to '<name>'. Exit Claude Code and start it again to activate.
 
-Then end the command. Never attempt to restart Claude Code yourself, and never imply the new provider is already active.
+There is no decision to make here, so do NOT use `AskUserQuestion`. Never attempt to restart Claude Code yourself, and never imply the new provider is already active.
 
 ### Storing a credential (exit 1, credman auth)
 

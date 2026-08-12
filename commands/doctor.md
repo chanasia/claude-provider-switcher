@@ -37,3 +37,5 @@ Repairs: recreates a missing or corrupt sidecar, re-renders missing helper shims
 Does **not** repair drift. Drift means someone hand-edited plugin-managed settings, and choosing what wins is the user's call - route that through `/provider:switch <name>`, which offers Overwrite / Incorporate / Cancel. If `--fix` reset a corrupt sidecar, tell the user to re-run `/provider:switch <name>` so the plugin knows what it manages again.
 
 Does not fix a malformed `settings.local.json`. The plugin refuses to overwrite a file it cannot parse; that one needs a hand edit.
+
+After relaying the report (and helping with any errors it names), end the command. Do not ask follow-up questions or offer "next step" menus.
