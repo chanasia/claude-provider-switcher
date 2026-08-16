@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+
+- **Phase 2: macOS / Linux support** — plan and implementer handoff in
+  [docs/phase2-cross-platform.md](./docs/phase2-cross-platform.md)
+- Project scope (`<repo>/.claude/settings.local.json`) alongside global
+- `/provider:edit` for flag-driven field changes
+
+## [0.1.11]
+
 ### Added
 
 - **settings.json backup on switch.** apply-profile now copies the
@@ -17,13 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `model` now accepts commas, allowing the router-style
   `provider,model` form used by gateways such as claude-code-router.
-
-### Planned
-
-- **Phase 2: macOS / Linux support** — plan and implementer handoff in
-  [docs/phase2-cross-platform.md](./docs/phase2-cross-platform.md)
-- Project scope (`<repo>/.claude/settings.local.json`) alongside global
-- `/provider:edit` for flag-driven field changes
 
 ## [0.1.10]
 
