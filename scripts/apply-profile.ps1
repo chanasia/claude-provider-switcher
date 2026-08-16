@@ -381,6 +381,11 @@ function Invoke-Apply {
 
     $settingsDir = Split-Path -Parent $settingsPath
     $null = New-Item -ItemType Directory -Path $settingsDir -Force
+    # Single rolling backup of the pre-switch settings, restorable by hand
+    # if a switch goes wrong. ponytail: one .bak, add rotation if ever needed.
+    if (Test-Path -LiteralPath $settingsPath) {
+        Copy-Item -LiteralPath $settingsPath -Destination "$settingsPath.bak" -Force
+    }
     Write-AtomicFile -Path $settingsPath -Content (($settings | ConvertTo-Json -Depth 10) + "`n")
 
     # ---- Step 10b: migration tail - clean the legacy file ----

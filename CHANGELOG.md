@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **settings.json backup on switch.** apply-profile now copies the
+  pre-switch `settings.json` to `settings.json.bak` (single rolling
+  backup) before writing, so a bad switch can be undone by hand.
+
+### Changed
+
+- `model` now accepts commas, allowing the router-style
+  `provider,model` form used by gateways such as claude-code-router.
+
 ### Planned
 
 - **Phase 2: macOS / Linux support** — plan and implementer handoff in

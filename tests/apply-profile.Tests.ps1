@@ -117,6 +117,20 @@ Describe 'apply-profile.ps1 switching' {
         Test-Path $s.apiKeyHelper | Should Be $true
     }
 
+    It 'backs up the pre-switch settings file to settings.json.bak' {
+        $h = New-TestHome $TestDrive 'bak'
+        $null = Write-TestProfile $h 'anthropic' $anthropicJson
+        $settingsPath = Join-Path $h '.claude\settings.json'
+        $null = New-Item -ItemType Directory -Path (Split-Path -Parent $settingsPath) -Force
+        Set-Content -LiteralPath $settingsPath -Value '{"theme":"dark"}' -Encoding Ascii
+
+        (Invoke-ProviderScript 'apply-profile.ps1' @('anthropic')).Exit | Should Be 9
+
+        $bak = Get-Content -LiteralPath "$settingsPath.bak" -Raw
+        $bak.Trim() | Should Be '{"theme":"dark"}'
+        (Read-TestSettings $h).env.CLAUDE_PROVIDER_ACTIVE | Should Be 'anthropic'
+    }
+
     It 'switching back to auth:none removes every managed key but preserves unmanaged ones' {
         $h = New-TestHome $TestDrive 'roundtrip'
         $null = Write-TestProfile $h 'anthropic' $anthropicJson
