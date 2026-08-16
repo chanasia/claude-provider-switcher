@@ -153,6 +153,11 @@ Describe 'validate-profile.ps1' {
         (Invoke-Validate @($p)).Exit | Should Be 6
     }
 
+    It 'accepts a router-style provider,model name' {
+        $p = New-ProfileFile $TestDrive 'mdlc' '{"name":"mdlc","auth":{"type":"none"},"model":"some-provider,some/model-name:tag"}'
+        (Invoke-Validate @($p)).Exit | Should Be 0
+    }
+
     It 'reports multiple violations at once' {
         $p = New-ProfileFile $TestDrive 'multi' '{"name":"MULTI","auth":{"type":"nope"},"ttl_ms":1,"junk":true}'
         $r = Invoke-Validate @($p)

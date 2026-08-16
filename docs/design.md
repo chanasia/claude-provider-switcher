@@ -76,7 +76,7 @@ validator).
 | `auth.type` | required: `none` \| `credman` \| `env_var` |
 | `auth.target` | credman only: `^[A-Za-z0-9_./-]{1,255}$` (rejects shell metacharacters) |
 | `auth.var` | env_var only: `^[A-Z_][A-Z0-9_]*$` |
-| `model` | optional, `^[A-Za-z0-9_.:/-]{1,128}$` — written as top-level `model` in settings |
+| `model` | optional, `^[A-Za-z0-9_.:/,-]{1,128}$` — written as top-level `model` in settings (comma allows the router `provider,model` form) |
 | `ttl_ms` | optional int, 1000–86400000 → `CLAUDE_CODE_API_KEY_HELPER_TTL_MS` |
 | `extras` | optional map, keys `^[A-Z_][A-Z0-9_]*$`, string values, no denylisted keys |
 

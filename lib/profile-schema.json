@@ -59,7 +59,7 @@
     },
     "model": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_.:/-]{1,128}$",
+      "pattern": "^[A-Za-z0-9_.:/,-]{1,128}$",
       "description": "Default model for new sessions. Written as the top-level `model` key in settings.local.json."
     },
     "ttl_ms": {

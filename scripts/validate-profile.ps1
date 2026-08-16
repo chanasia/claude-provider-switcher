@@ -136,8 +136,9 @@ if ($null -eq $auth -or $auth -isnot [PSCustomObject]) {
 # ---- rule: model ----
 $model = Get-Prop $doc 'model'
 if ($null -ne $model) {
-    if ($model -isnot [string] -or $model -cnotmatch '^[A-Za-z0-9_.:/-]{1,128}$') {
-        $problems.Add("'model' must match ^[A-Za-z0-9_.:/-]{1,128}$")
+    # comma allowed: router gateways (e.g. claude-code-router) use "provider,model"
+    if ($model -isnot [string] -or $model -cnotmatch '^[A-Za-z0-9_.:/,-]{1,128}$') {
+        $problems.Add("'model' must match ^[A-Za-z0-9_.:/,-]{1,128}$")
     }
 }
 
